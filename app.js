@@ -4,15 +4,66 @@ const formatBtn = document.querySelector("#formatBtn");
 const copyBtn = document.querySelector("#copyBtn");
 const downloadBtn = document.querySelector("#downloadBtn");
 const clearBtn = document.querySelector("#clearBtn");
+const exampleRules = document.querySelector("#exampleRules");
+const loadExampleBtn = document.querySelector("#loadExampleBtn");
 const indentSize = document.querySelector("#indentSize");
 const compactBlankLines = document.querySelector("#compactBlankLines");
 const statusBox = document.querySelector("#status");
+const highlightedOutput = document.querySelector("#highlightedOutput");
+const toast = document.querySelector("#toast");
 
 const sectionPattern = /^(meta|events|match|outcome|condition|options):$/i;
+const examples = {
+  login: `rule suspicious_login {
+meta:
+author = "Saheed Adeoye"
+description = "Detect suspicious user login events"
+
+events:
+$e.metadata.event_type = "USER_LOGIN"
+$e.principal.user.userid = $user
+$e.security_result.action = "ALLOW"
+
+condition:
+$e
+}`,
+  process: `rule encoded_powershell {
+meta:
+description = "Detect encoded PowerShell command usage"
+
+events:
+$e.metadata.event_type = "PROCESS_LAUNCH"
+$e.target.process.command_line = /(?i)powershell.*-enc/
+
+condition:
+$e
+}`,
+  network: `rule unusual_network_connection {
+meta:
+description = "Detect outbound connection to a watched address"
+
+events:
+$e.metadata.event_type = "NETWORK_CONNECTION"
+$e.target.ip = "203.0.113.10"
+
+condition:
+$e
+}`
+};
+let toastTimer;
 
 function setStatus(message, type = "ok") {
   statusBox.textContent = message;
   statusBox.className = `status${type === "ok" ? "" : ` ${type}`}`;
+}
+
+function showToast(message) {
+  toast.textContent = message;
+  toast.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => {
+    toast.classList.remove("show");
+  }, 2200);
 }
 
 function normalizeOperators(line) {
@@ -60,6 +111,28 @@ function countOutsideQuotes(line, character) {
 function countLeadingClosingBraces(line) {
   const match = line.match(/^}+/);
   return match ? match[0].length : 0;
+}
+
+function escapeHtml(value) {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
+function highlightYaraL(source) {
+  return escapeHtml(source)
+    .replace(/(#.*)$/gm, '<span class="token-comment">$1</span>')
+    .replace(/("(?:\\.|[^"\\])*")/g, '<span class="token-string">$1</span>')
+    .replace(/(^|\s)(\$[A-Za-z_][\w.]*)/g, '$1<span class="token-variable">$2</span>')
+    .replace(/\b(rule|and|or|not|nocase|re|regex|any|all|of|them|in|over|match|outcome|condition|events|meta|options)\b/g, '<span class="token-keyword">$1</span>')
+    .replace(/(^\s*)(meta|events|match|outcome|condition|options):/gim, '$1<span class="token-section">$2:</span>');
+}
+
+function updateHighlightedOutput() {
+  highlightedOutput.innerHTML = output.value.trim()
+    ? highlightYaraL(output.value)
+    : "";
 }
 
 function formatYaraL(source, options) {
@@ -127,6 +200,7 @@ function runFormatter() {
 
   if (!source.trim()) {
     output.value = "";
+    updateHighlightedOutput();
     setStatus("Paste a YARA-L rule to format.", "warning");
     return;
   }
@@ -137,6 +211,7 @@ function runFormatter() {
   });
 
   output.value = result.text;
+  updateHighlightedOutput();
 
   if (result.warnings.length > 0) {
     setStatus(`Formatted with warnings: ${result.warnings.join(" ")}`, "warning");
@@ -153,6 +228,7 @@ async function copyOutput() {
 
   await navigator.clipboard.writeText(output.value);
   setStatus("Formatted rule copied to clipboard.");
+  showToast("Copied formatted rule to clipboard.");
 }
 
 function downloadOutput() {
@@ -173,14 +249,30 @@ function downloadOutput() {
 function clearEditors() {
   input.value = "";
   output.value = "";
+  exampleRules.value = "";
+  updateHighlightedOutput();
   setStatus("Editors cleared.");
   input.focus();
+}
+
+function loadExampleRule() {
+  const example = examples[exampleRules.value];
+
+  if (!example) {
+    setStatus("Choose an example rule first.", "warning");
+    return;
+  }
+
+  input.value = example;
+  runFormatter();
+  showToast("Example rule loaded.");
 }
 
 formatBtn.addEventListener("click", runFormatter);
 copyBtn.addEventListener("click", copyOutput);
 downloadBtn.addEventListener("click", downloadOutput);
 clearBtn.addEventListener("click", clearEditors);
+loadExampleBtn.addEventListener("click", loadExampleRule);
 indentSize.addEventListener("change", runFormatter);
 compactBlankLines.addEventListener("change", runFormatter);
 

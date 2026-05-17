@@ -7,10 +7,17 @@
   --border: #d8e0e7;
   --accent: #136f63;
   --accent-strong: #0c534a;
+  --coffee: #ffdd00;
+  --coffee-text: #201b00;
   --danger: #b42318;
   --warning: #946200;
   --code-bg: #101820;
   --code-text: #edf7f6;
+  --syntax-keyword: #7dd3fc;
+  --syntax-section: #facc15;
+  --syntax-string: #86efac;
+  --syntax-variable: #f0abfc;
+  --syntax-comment: #94a3b8;
 }
 
 * {
@@ -98,6 +105,31 @@ button {
   font-weight: 650;
 }
 
+.coffee-link,
+.github-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.coffee-link {
+  border-color: #e7c600;
+  background: var(--coffee);
+  color: var(--coffee-text);
+}
+
+.coffee-link:hover {
+  background: #f2d000;
+}
+
 button:hover {
   background: var(--accent-strong);
 }
@@ -116,18 +148,7 @@ select {
 }
 
 .github-link {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  min-height: 40px;
-  padding: 0 12px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
   background: var(--panel);
-  color: var(--text);
-  font-size: 14px;
-  font-weight: 700;
-  text-decoration: none;
 }
 
 .github-link:hover {
@@ -181,6 +202,55 @@ textarea {
 
 textarea::placeholder {
   color: #8fb2b0;
+}
+
+.highlight-preview {
+  border-top: 1px solid var(--border);
+  background: var(--code-bg);
+}
+
+.highlight-preview > span {
+  display: block;
+  padding: 10px 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  color: #a8c6c3;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+pre {
+  min-height: 180px;
+  max-height: 320px;
+  margin: 0;
+  overflow: auto;
+  padding: 16px;
+  color: var(--code-text);
+  font: 14px/1.55 "Cascadia Code", Consolas, "Liberation Mono", monospace;
+  white-space: pre;
+}
+
+.token-keyword {
+  color: var(--syntax-keyword);
+  font-weight: 700;
+}
+
+.token-section {
+  color: var(--syntax-section);
+  font-weight: 700;
+}
+
+.token-string {
+  color: var(--syntax-string);
+}
+
+.token-variable {
+  color: var(--syntax-variable);
+}
+
+.token-comment {
+  color: var(--syntax-comment);
+  font-style: italic;
 }
 
 .options {
@@ -246,6 +316,30 @@ textarea::placeholder {
   text-decoration: underline;
 }
 
+.toast {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  z-index: 20;
+  max-width: min(360px, calc(100vw - 36px));
+  padding: 12px 14px;
+  border-radius: 8px;
+  background: var(--accent-strong);
+  color: white;
+  box-shadow: 0 12px 30px rgba(16, 24, 32, 0.22);
+  font-size: 14px;
+  font-weight: 700;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(10px);
+  transition: opacity 160ms ease, transform 160ms ease;
+}
+
+.toast.show {
+  opacity: 1;
+  transform: translateY(0);
+}
+
 @media (max-width: 900px) {
   .toolbar {
     align-items: stretch;
@@ -258,5 +352,29 @@ textarea::placeholder {
 
   .editor-pane {
     min-height: 420px;
+  }
+}
+
+@media (max-width: 560px) {
+  .app-shell,
+  .site-footer {
+    width: min(100% - 20px, 1440px);
+  }
+
+  h1 {
+    font-size: 26px;
+  }
+
+  .actions,
+  .options {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .actions > *,
+  .options > *,
+  .options select,
+  .options button {
+    width: 100%;
   }
 }
