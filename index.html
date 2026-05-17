@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>YARA-L Formatter</title>
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <main class="app-shell">
+      <section class="toolbar" aria-label="Formatter controls">
+        <div>
+          <div class="title-row">
+            <h1>YARA-L Formatter</h1>
+            <span class="version">v1.0.0</span>
+          </div>
+          <p>Paste a YARA-L rule, format it, then copy or download the cleaned version.</p>
+        </div>
+        <div class="actions">
+          <a class="github-link" href="https://github.com/kitann/yara-l-formatter" target="_blank" rel="noreferrer">
+            <svg aria-hidden="true" viewBox="0 0 24 24">
+              <path d="M12 .5C5.7.5.6 5.6.6 11.9c0 5 3.3 9.3 7.9 10.8.6.1.8-.2.8-.6v-2.1c-3.2.7-3.9-1.4-3.9-1.4-.5-1.3-1.3-1.7-1.3-1.7-1-.7.1-.7.1-.7 1.2.1 1.8 1.2 1.8 1.2 1 .1.6 2.1 3.2 1.5.1-.8.4-1.3.7-1.6-2.6-.3-5.3-1.3-5.3-5.7 0-1.3.5-2.3 1.2-3.1-.1-.3-.5-1.5.1-3.1 0 0 1-.3 3.2 1.2.9-.3 1.9-.4 2.9-.4s2 .1 2.9.4c2.2-1.5 3.2-1.2 3.2-1.2.6 1.6.2 2.8.1 3.1.8.8 1.2 1.8 1.2 3.1 0 4.4-2.7 5.4-5.3 5.7.4.4.8 1.1.8 2.2v3.3c0 .3.2.7.8.6 4.6-1.5 7.9-5.8 7.9-10.8C23.4 5.6 18.3.5 12 .5Z"></path>
+            </svg>
+            <span>GitHub</span>
+          </a>
+          <button id="formatBtn" type="button">Format</button>
+          <button id="copyBtn" type="button">Copy</button>
+          <button id="downloadBtn" type="button">Download</button>
+          <button id="clearBtn" type="button" class="secondary">Clear</button>
+        </div>
+      </section>
+
+      <section class="workspace" aria-label="YARA-L editor">
+        <label class="editor-pane">
+          <span>Input</span>
+          <textarea id="input" spellcheck="false" placeholder="rule suspicious_login {
+  meta:
+    author = &quot;SOC&quot;
+
+  events:
+    $e.metadata.event_type = &quot;USER_LOGIN&quot;
+
+  condition:
+    $e
+}"></textarea>
+        </label>
+
+        <label class="editor-pane">
+          <span>Formatted output</span>
+          <textarea id="output" spellcheck="false" readonly></textarea>
+        </label>
+      </section>
+
+      <section class="options" aria-label="Formatting options">
+        <label>
+          <span>Indent size</span>
+          <select id="indentSize">
+            <option value="2" selected>2 spaces</option>
+            <option value="4">4 spaces</option>
+          </select>
+        </label>
+        <label class="checkbox">
+          <input id="compactBlankLines" type="checkbox" checked>
+          <span>Compact repeated blank lines</span>
+        </label>
+      </section>
+
+      <section id="status" class="status" aria-live="polite"></section>
+    </main>
+
+    <footer class="site-footer">
+      Built by Saheed Adeoye . Open Source on GitHub -
+      <a href="https://github.com/kitann/yara-l-formatter" target="_blank" rel="noreferrer">https://github.com/kitann/yara-l-formatter</a>
+    </footer>
+
+    <script src="app.js"></script>
+  </body>
+</html>
