@@ -20,8 +20,13 @@ const validationBadge = document.querySelector("#validationBadge");
 const lintResultsPanel = document.querySelector("#lintResultsPanel");
 const lintResultCount = document.querySelector("#lintResultCount");
 const lintResults = document.querySelector("#lintResults");
+const versionBadge = document.querySelector("[data-version-badge]");
 const toast = document.querySelector("#toast");
 
+const appConfig = window.YARALINT_CONFIG || {
+  version: "1.0.6",
+  build: "2026-05-18T13:38:14-05:00"
+};
 const sectionPattern = /^(meta|strings|events|match|outcome|condition|options):$/i;
 const githubRawBase = "https://raw.githubusercontent.com/Neo23x0/signature-base/master/yara/";
 const exampleCachePrefix = "yaraLFormatterExample:";
@@ -135,7 +140,7 @@ function highlightYaraL(source, fixedLines = new Set()) {
     const lineNumber = index + 1;
     const className = fixedLines.has(lineNumber) ? "code-line fixed-line" : "code-line";
     return `<span class="${className}" data-line="${lineNumber}">${highlightLine(line) || " "}</span>`;
-  }).join("\n");
+  }).join("");
 }
 
 function updateHighlightedOutput(fixedLines = new Set()) {
@@ -1220,6 +1225,17 @@ function initializeTheme() {
   document.body.dataset.theme = themeMode.value;
 }
 
+function initializeVersionBadge() {
+  document.documentElement.dataset.appVersion = appConfig.version;
+
+  if (!versionBadge) {
+    return;
+  }
+
+  versionBadge.textContent = `v${appConfig.version}`;
+  versionBadge.title = `Build ${appConfig.build}`;
+}
+
 formatBtn.addEventListener("click", runFormatter);
 copyBtn.addEventListener("click", copyOutput);
 downloadBtn.addEventListener("click", downloadOutput);
@@ -1244,6 +1260,7 @@ document.addEventListener("keydown", (event) => {
   }
 });
 
+initializeVersionBadge();
 initializeTheme();
 renderExamples();
 setValidationBadge("READY");

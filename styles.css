@@ -135,7 +135,7 @@ body {
 .brand-copy {
   flex: 1 1 210px;
   min-width: 180px;
-  max-width: 300px;
+  max-width: 360px;
 }
 
 .title-row {
@@ -584,13 +584,13 @@ pre {
   overflow: auto;
   padding: 16px;
   color: var(--code-text);
-  font: 14px/1.55 "Cascadia Code", Consolas, "Liberation Mono", monospace;
+  font: 14px/1.45 "Cascadia Code", Consolas, "Liberation Mono", monospace;
   white-space: pre;
 }
 
 .code-line {
   display: block;
-  min-height: 1.55em;
+  min-height: 1.45em;
   padding: 0 6px;
   margin: 0 -6px;
   border-left: 3px solid transparent;
