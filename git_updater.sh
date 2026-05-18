@@ -33,7 +33,9 @@ echo ""
 echo "[*] Latest commits:"
 git log --oneline -5
 
-# Show latest status
+# Show current git status
+echo ""
+echo "[*] Checking git status..."
 git status
 
 # Completion message
