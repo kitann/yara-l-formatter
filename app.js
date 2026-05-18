@@ -12,7 +12,7 @@ const statusBox = document.querySelector("#status");
 const highlightedOutput = document.querySelector("#highlightedOutput");
 const toast = document.querySelector("#toast");
 
-const sectionPattern = /^(meta|events|match|outcome|condition|options):$/i;
+const sectionPattern = /^(meta|strings|events|match|outcome|condition|options):$/i;
 const examples = {
   login: `rule suspicious_login {
 meta:
@@ -67,6 +67,10 @@ function showToast(message) {
 }
 
 function normalizeOperators(line) {
+  if (line === "{") {
+    return "{";
+  }
+
   return line
     .replace(/\s+$/g, "")
     .replace(/\s*{\s*$/g, " {")
@@ -125,8 +129,8 @@ function highlightYaraL(source) {
     .replace(/(#.*)$/gm, '<span class="token-comment">$1</span>')
     .replace(/("(?:\\.|[^"\\])*")/g, '<span class="token-string">$1</span>')
     .replace(/(^|\s)(\$[A-Za-z_][\w.]*)/g, '$1<span class="token-variable">$2</span>')
-    .replace(/\b(rule|and|or|not|nocase|re|regex|any|all|of|them|in|over|match|outcome|condition|events|meta|options)\b/g, '<span class="token-keyword">$1</span>')
-    .replace(/(^\s*)(meta|events|match|outcome|condition|options):/gim, '$1<span class="token-section">$2:</span>');
+    .replace(/\b(rule|and|or|not|nocase|re|regex|any|all|of|them|in|over|match|outcome|condition|events|strings|meta|options)\b/g, '<span class="token-keyword">$1</span>')
+    .replace(/(^\s*)(meta|strings|events|match|outcome|condition|options):/gim, '$1<span class="token-section">$2:</span>');
 }
 
 function updateHighlightedOutput() {
@@ -141,7 +145,7 @@ function formatYaraL(source, options) {
   const formatted = [];
   const warnings = [];
   let indentLevel = 0;
-  let insideSection = false;
+  let sectionIndentLevel = null;
   let previousWasBlank = false;
 
   lines.forEach((rawLine, index) => {
@@ -164,16 +168,18 @@ function formatYaraL(source, options) {
 
     if (leadingCloses > 0) {
       indentLevel = Math.max(indentLevel - leadingCloses, 0);
-      if (indentLevel === 0) {
-        insideSection = false;
+      if (sectionIndentLevel !== null && indentLevel <= sectionIndentLevel) {
+        sectionIndentLevel = null;
       }
     }
 
     if (sectionPattern.test(line)) {
       formatted.push(`${indentUnit.repeat(indentLevel)}${line}`);
-      insideSection = true;
+      sectionIndentLevel = indentLevel;
     } else {
-      const bodyIndent = insideSection && !line.startsWith("}") ? indentLevel + 1 : indentLevel;
+      const bodyIndent = sectionIndentLevel !== null && !line.startsWith("}")
+        ? sectionIndentLevel + 1 + Math.max(indentLevel - sectionIndentLevel, 0)
+        : indentLevel;
       formatted.push(`${indentUnit.repeat(bodyIndent)}${line}`);
     }
 
