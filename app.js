@@ -16,6 +16,10 @@ const themeMode = document.querySelector("#themeMode");
 const compactBlankLines = document.querySelector("#compactBlankLines");
 const statusBox = document.querySelector("#status");
 const highlightedOutput = document.querySelector("#highlightedOutput");
+const validationBadge = document.querySelector("#validationBadge");
+const lintResultsPanel = document.querySelector("#lintResultsPanel");
+const lintResultCount = document.querySelector("#lintResultCount");
+const lintResults = document.querySelector("#lintResults");
 const toast = document.querySelector("#toast");
 
 const sectionPattern = /^(meta|strings|events|match|outcome|condition|options):$/i;
@@ -117,8 +121,8 @@ function escapeHtml(value) {
     .replace(/>/g, "&gt;");
 }
 
-function highlightYaraL(source) {
-  return escapeHtml(source)
+function highlightLine(line) {
+  return escapeHtml(line)
     .replace(/(#.*)$/gm, '<span class="token-comment">$1</span>')
     .replace(/("(?:\\.|[^"\\])*")/g, '<span class="token-string">$1</span>')
     .replace(/(^|\s)(\$[A-Za-z_][\w.]*)/g, '$1<span class="token-variable">$2</span>')
@@ -126,9 +130,17 @@ function highlightYaraL(source) {
     .replace(/(^\s*)(meta|strings|events|match|outcome|condition|options):/gim, '$1<span class="token-section">$2:</span>');
 }
 
-function updateHighlightedOutput() {
+function highlightYaraL(source, fixedLines = new Set()) {
+  return source.split("\n").map((line, index) => {
+    const lineNumber = index + 1;
+    const className = fixedLines.has(lineNumber) ? "code-line fixed-line" : "code-line";
+    return `<span class="${className}" data-line="${lineNumber}">${highlightLine(line) || " "}</span>`;
+  }).join("\n");
+}
+
+function updateHighlightedOutput(fixedLines = new Set()) {
   highlightedOutput.innerHTML = output.value.trim()
-    ? highlightYaraL(output.value)
+    ? highlightYaraL(output.value, fixedLines)
     : "";
 }
 
@@ -194,28 +206,558 @@ function formatYaraL(source, options) {
   };
 }
 
+const yaraLintEngine = (() => {
+  const validStringModifiers = new Set(["ascii", "wide", "nocase", "fullword", "private"]);
+
+  function makeIssue({ severity = "INFO", line = null, message, original = "", corrected = "", fixed = false }) {
+    return { severity, line, message, original, corrected, fixed };
+  }
+
+  function lineWithoutComment(line) {
+    let quote = null;
+    let escaped = false;
+
+    for (let index = 0; index < line.length; index += 1) {
+      const char = line[index];
+
+      if (escaped) {
+        escaped = false;
+        continue;
+      }
+
+      if (char === "\\") {
+        escaped = true;
+        continue;
+      }
+
+      if ((char === '"' || char === "'") && quote === null) {
+        quote = char;
+        continue;
+      }
+
+      if (char === quote) {
+        quote = null;
+        continue;
+      }
+
+      if (quote === null && char === "#") {
+        return line.slice(0, index);
+      }
+    }
+
+    return line;
+  }
+
+  function getSectionName(line) {
+    const match = line.trim().match(/^(meta|strings|events|match|outcome|condition|options):$/i);
+    return match ? match[1].toLowerCase() : null;
+  }
+
+  function buildContext(lines) {
+    const sectionsByLine = new Map();
+    let currentSection = null;
+
+    lines.forEach((line, index) => {
+      const sectionName = getSectionName(line);
+
+      if (sectionName) {
+        currentSection = sectionName;
+      }
+
+      sectionsByLine.set(index + 1, currentSection);
+    });
+
+    return { sectionsByLine };
+  }
+
+  function findClosingQuote(value, quoteChar) {
+    let escaped = false;
+
+    for (let index = 1; index < value.length; index += 1) {
+      const char = value[index];
+
+      if (escaped) {
+        escaped = false;
+        continue;
+      }
+
+      if (char === "\\") {
+        escaped = true;
+        continue;
+      }
+
+      if (char === quoteChar) {
+        return index;
+      }
+    }
+
+    return -1;
+  }
+
+  function splitValueAndModifiers(rawValue) {
+    const value = rawValue.trim();
+
+    if (!value) {
+      return { kind: "missing", value: "", modifiers: "", validValueBoundary: false };
+    }
+
+    if (value.startsWith('"') || value.startsWith("'")) {
+      const end = findClosingQuote(value, value[0]);
+      return {
+        kind: value[0] === '"' ? "text" : "singleText",
+        value: end === -1 ? value : value.slice(0, end + 1),
+        modifiers: end === -1 ? "" : value.slice(end + 1).trim(),
+        validValueBoundary: end !== -1
+      };
+    }
+
+    if (value.startsWith("/")) {
+      const end = findClosingQuote(value, "/");
+      return {
+        kind: "regex",
+        value: end === -1 ? value : value.slice(0, end + 1),
+        modifiers: end === -1 ? "" : value.slice(end + 1).trim(),
+        validValueBoundary: end !== -1
+      };
+    }
+
+    if (value.startsWith("{")) {
+      const end = value.lastIndexOf("}");
+      return {
+        kind: "hex",
+        value: end === -1 ? value : value.slice(0, end + 1),
+        modifiers: end === -1 ? "" : value.slice(end + 1).trim(),
+        validValueBoundary: end !== -1
+      };
+    }
+
+    const firstWhitespace = value.search(/\s/);
+    return {
+      kind: "bare",
+      value: firstWhitespace === -1 ? value : value.slice(0, firstWhitespace),
+      modifiers: firstWhitespace === -1 ? "" : value.slice(firstWhitespace).trim(),
+      validValueBoundary: true
+    };
+  }
+
+  function parseStringDeclaration(line) {
+    const match = lineWithoutComment(line).match(/^(\s*)(\$[A-Za-z_][\w]*)\s*=\s*(.+?)\s*$/);
+
+    if (!match) {
+      return null;
+    }
+
+    const parsed = splitValueAndModifiers(match[3]);
+    return {
+      indent: match[1],
+      id: match[2],
+      rawValue: match[3],
+      ...parsed
+    };
+  }
+
+  function parseMetaAssignment(line) {
+    const match = lineWithoutComment(line).match(/^(\s*)([A-Za-z_][\w]*)\s*=\s*(.+?)\s*$/);
+
+    if (!match) {
+      return null;
+    }
+
+    return {
+      indent: match[1],
+      key: match[2],
+      rawValue: match[3],
+      ...splitValueAndModifiers(match[3])
+    };
+  }
+
+  function rebuildStringDeclaration(parsed, value) {
+    const modifiers = parsed.modifiers ? ` ${parsed.modifiers}` : "";
+    return `${parsed.indent}${parsed.id} = ${value}${modifiers}`;
+  }
+
+  function rebuildMetaAssignment(parsed, value) {
+    return `${parsed.indent}${parsed.key} = ${value}`;
+  }
+
+  function normalizeSingleQuotedValue(value) {
+    const inner = value.slice(1, -1).replace(/"/g, '\\"');
+    return `"${inner}"`;
+  }
+
+  function validateModifiers(modifiers) {
+    if (!modifiers) {
+      return [];
+    }
+
+    return modifiers.split(/\s+/).filter((modifier) => {
+      if (validStringModifiers.has(modifier)) {
+        return false;
+      }
+
+      return !/^(xor|base64|base64wide)(\(.+\))?$/.test(modifier);
+    });
+  }
+
+  function validateHexString(hexValue) {
+    if (!hexValue.startsWith("{") || !hexValue.endsWith("}")) {
+      return ["Hex string must start with { and end with }."];
+    }
+
+    const body = hexValue.slice(1, -1).trim();
+
+    if (!body) {
+      return ["Hex string is empty."];
+    }
+
+    return body.split(/\s+/).filter((token) => {
+      if (/^[0-9A-Fa-f?]{2}$/.test(token)) {
+        return false;
+      }
+
+      if (/^\[\d+(-\d+)?\]$/.test(token)) {
+        return false;
+      }
+
+      return !["(", ")", "|"].includes(token);
+    }).map((token) => `Invalid hex token: ${token}`);
+  }
+
+  const validators = [
+    {
+      id: "brace-balance",
+      validate(state) {
+        let balance = 0;
+
+        state.lines.forEach((line, index) => {
+          const opens = countOutsideQuotes(line, "{");
+          const closes = countOutsideQuotes(line, "}");
+          balance += opens - closes;
+
+          if (balance < 0) {
+            state.issues.push(makeIssue({
+              severity: "ERROR",
+              line: index + 1,
+              message: "Closing brace appears before a matching opening brace.",
+              original: line
+            }));
+            balance = 0;
+          }
+        });
+
+        if (balance > 0) {
+          state.issues.push(makeIssue({
+            severity: "ERROR",
+            message: `${balance} opening brace${balance === 1 ? "" : "s"} missing a closing brace.`
+          }));
+        }
+      }
+    },
+    {
+      id: "required-condition",
+      validate(state) {
+        if (!state.lines.some((line) => /^condition:$/i.test(line.trim()))) {
+          state.issues.push(makeIssue({
+            severity: "ERROR",
+            message: "Missing required condition: block."
+          }));
+        }
+      }
+    },
+    {
+      id: "duplicate-rule-identifiers",
+      validate(state) {
+        const seen = new Map();
+
+        state.lines.forEach((line, index) => {
+          const match = line.trim().match(/^rule\s+([A-Za-z_][\w]*)\b/);
+
+          if (!match) {
+            return;
+          }
+
+          if (seen.has(match[1])) {
+            state.issues.push(makeIssue({
+              severity: "ERROR",
+              line: index + 1,
+              message: `Duplicate rule identifier: ${match[1]}.`,
+              original: line
+            }));
+            return;
+          }
+
+          seen.set(match[1], index + 1);
+        });
+      }
+    },
+    {
+      id: "string-declarations",
+      validate(state) {
+        const seen = new Map();
+
+        state.lines.forEach((line, index) => {
+          const lineNumber = index + 1;
+          const section = state.context.sectionsByLine.get(lineNumber);
+          const trimmed = line.trim();
+
+          if (section !== "strings" || !trimmed || trimmed.startsWith("#") || trimmed.startsWith("}") || getSectionName(line)) {
+            return;
+          }
+
+          const parsed = parseStringDeclaration(line);
+
+          if (!parsed) {
+            state.issues.push(makeIssue({
+              severity: "ERROR",
+              line: lineNumber,
+              message: "Invalid string declaration. Expected format like $id = \"text\", $id = /regex/, or $id = { 4D 5A }.",
+              original: line
+            }));
+            return;
+          }
+
+          if (seen.has(parsed.id)) {
+            state.issues.push(makeIssue({
+              severity: "ERROR",
+              line: lineNumber,
+              message: `Duplicate string identifier: ${parsed.id}.`,
+              original: line
+            }));
+          } else {
+            seen.set(parsed.id, lineNumber);
+          }
+
+          if (!parsed.validValueBoundary) {
+            state.issues.push(makeIssue({
+              severity: "ERROR",
+              line: lineNumber,
+              message: "Unterminated string, regex, or hex value.",
+              original: line
+            }));
+          }
+
+          if (parsed.kind === "bare" && /^[0-9]+$/.test(parsed.value)) {
+            const corrected = rebuildStringDeclaration(parsed, `"${parsed.value}"`);
+            state.lines[index] = corrected;
+            state.fixedLines.add(lineNumber);
+            state.issues.push(makeIssue({
+              severity: "WARNING",
+              line: lineNumber,
+              message: "Converted invalid integer assignment to quoted text string.",
+              original: line,
+              corrected,
+              fixed: true
+            }));
+          } else if (parsed.kind === "singleText" && parsed.validValueBoundary) {
+            const corrected = rebuildStringDeclaration(parsed, normalizeSingleQuotedValue(parsed.value));
+            state.lines[index] = corrected;
+            state.fixedLines.add(lineNumber);
+            state.issues.push(makeIssue({
+              severity: "INFO",
+              line: lineNumber,
+              message: "Normalized single-quoted string to YARA-compatible double quotes.",
+              original: line,
+              corrected,
+              fixed: true
+            }));
+          } else if (parsed.kind === "bare") {
+            state.issues.push(makeIssue({
+              severity: "ERROR",
+              line: lineNumber,
+              message: "String value must be quoted text, a regex, or a hex string.",
+              original: line
+            }));
+          }
+
+          if (parsed.kind === "hex") {
+            validateHexString(parsed.value).forEach((message) => {
+              state.issues.push(makeIssue({
+                severity: "ERROR",
+                line: lineNumber,
+                message,
+                original: line
+              }));
+            });
+          }
+
+          validateModifiers(parsed.modifiers).forEach((modifier) => {
+            state.issues.push(makeIssue({
+              severity: "ERROR",
+              line: lineNumber,
+              message: `Invalid string modifier: ${modifier}.`,
+              original: line
+            }));
+          });
+        });
+      }
+    },
+    {
+      id: "meta-quote-normalization",
+      validate(state) {
+        state.lines.forEach((line, index) => {
+          const lineNumber = index + 1;
+          const section = state.context.sectionsByLine.get(lineNumber);
+
+          if (section !== "meta" || line.trim().startsWith("}") || getSectionName(line)) {
+            return;
+          }
+
+          const parsed = parseMetaAssignment(line);
+
+          if (!parsed || parsed.kind !== "singleText" || !parsed.validValueBoundary) {
+            return;
+          }
+
+          const corrected = rebuildMetaAssignment(parsed, normalizeSingleQuotedValue(parsed.value));
+          state.lines[index] = corrected;
+          state.fixedLines.add(lineNumber);
+          state.issues.push(makeIssue({
+            severity: "INFO",
+            line: lineNumber,
+            message: "Normalized meta value from single quotes to double quotes.",
+            original: line,
+            corrected,
+            fixed: true
+          }));
+        });
+      }
+    }
+  ];
+
+  function lintAndFix(source) {
+    const lines = source.replace(/\r\n?/g, "\n").split("\n");
+    const state = {
+      lines,
+      context: buildContext(lines),
+      issues: [],
+      fixedLines: new Set()
+    };
+
+    validators.forEach((validator) => validator.validate(state));
+
+    const hasErrors = state.issues.some((issue) => issue.severity === "ERROR");
+    const hasFixes = state.issues.some((issue) => issue.fixed);
+    const status = hasErrors ? "INVALID" : hasFixes ? "FIXED" : "VALID";
+
+    return {
+      text: state.lines.join("\n").trimEnd() + "\n",
+      issues: state.issues,
+      fixedLines: state.fixedLines,
+      status
+    };
+  }
+
+  return { lintAndFix };
+})();
+
+function setValidationBadge(status) {
+  validationBadge.textContent = status;
+  validationBadge.className = "validation-badge";
+
+  if (status === "VALID") {
+    validationBadge.classList.add("badge-valid");
+  } else if (status === "FIXED") {
+    validationBadge.classList.add("badge-fixed");
+  } else if (status === "INVALID") {
+    validationBadge.classList.add("badge-invalid");
+  } else {
+    validationBadge.classList.add("badge-info");
+  }
+}
+
+function appendLintMeta(container, label, value) {
+  if (!value) {
+    return;
+  }
+
+  const row = document.createElement("div");
+  row.className = "lint-meta";
+  row.append(`${label}: `);
+  const code = document.createElement("code");
+  code.textContent = value;
+  row.append(code);
+  container.append(row);
+}
+
+function renderLintResults(result = null) {
+  lintResults.innerHTML = "";
+
+  if (!result) {
+    lintResultCount.textContent = "No rule analyzed";
+    lintResults.innerHTML = '<p class="lint-empty">Format a rule to see lint results.</p>';
+    return;
+  }
+
+  const issues = result.issues;
+  const fixedCount = issues.filter((issue) => issue.fixed).length;
+  const errorCount = issues.filter((issue) => issue.severity === "ERROR").length;
+
+  lintResultCount.textContent = `${issues.length} finding${issues.length === 1 ? "" : "s"} | ${fixedCount} fixed | ${errorCount} error${errorCount === 1 ? "" : "s"}`;
+  lintResultsPanel.open = issues.length > 0;
+
+  if (issues.length === 0) {
+    lintResults.innerHTML = '<p class="lint-empty">No lint issues detected.</p>';
+    return;
+  }
+
+  issues.forEach((issue) => {
+    const item = document.createElement("article");
+    item.className = "lint-item";
+
+    const severity = document.createElement("span");
+    severity.className = `lint-severity severity-${issue.severity.toLowerCase()}`;
+    severity.textContent = issue.severity;
+
+    const body = document.createElement("div");
+    const message = document.createElement("div");
+    message.className = "lint-message";
+    message.textContent = `${issue.line ? `Line ${issue.line}: ` : ""}${issue.message}`;
+    body.append(message);
+
+    appendLintMeta(body, "Original", issue.original);
+    appendLintMeta(body, "Corrected", issue.corrected);
+
+    if (issue.fixed) {
+      const fixed = document.createElement("div");
+      fixed.className = "lint-meta";
+      fixed.textContent = "Auto-fix applied and highlighted in the output.";
+      body.append(fixed);
+    }
+
+    item.append(severity, body);
+    lintResults.append(item);
+  });
+}
+
 function runFormatter() {
   const source = input.value;
 
   if (!source.trim()) {
     output.value = "";
     updateHighlightedOutput();
+    setValidationBadge("READY");
+    renderLintResults();
     setStatus("Paste a YARA-L rule to format.", "warning");
     return;
   }
 
-  const result = formatYaraL(source, {
+  const formatted = formatYaraL(source, {
     indentSize: Number(indentSize.value),
     compactBlankLines: compactBlankLines.checked
   });
+  const lintResult = yaraLintEngine.lintAndFix(formatted.text);
 
-  output.value = result.text;
-  updateHighlightedOutput();
+  output.value = lintResult.text;
+  updateHighlightedOutput(lintResult.fixedLines);
+  setValidationBadge(lintResult.status);
+  renderLintResults(lintResult);
 
-  if (result.warnings.length > 0) {
-    setStatus(`Formatted with warnings: ${result.warnings.join(" ")}`, "warning");
+  if (lintResult.status === "INVALID") {
+    setStatus("Formatted, but lint validation found errors that need review.", "error");
+  } else if (lintResult.status === "FIXED") {
+    setStatus("Formatted and auto-fixed recoverable lint issues.", "warning");
   } else {
-    setStatus("Formatted successfully.");
+    setStatus("Formatted and validated successfully.");
   }
 }
 
@@ -249,6 +791,8 @@ function clearEditors() {
   input.value = "";
   output.value = "";
   updateHighlightedOutput();
+  setValidationBadge("READY");
+  renderLintResults();
   setStatus("Editors cleared.");
   input.focus();
 }
@@ -399,4 +943,6 @@ document.addEventListener("keydown", (event) => {
 
 initializeTheme();
 renderExamples();
+setValidationBadge("READY");
+renderLintResults();
 setStatus("Ready.");

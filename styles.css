@@ -350,6 +350,41 @@ select {
   gap: 12px;
 }
 
+.output-header {
+  flex: 0 0 auto;
+}
+
+.validation-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0;
+}
+
+.badge-valid {
+  background: #e9f7f4;
+  color: #0c534a;
+}
+
+.badge-fixed {
+  background: #fff7df;
+  color: #946200;
+}
+
+.badge-invalid {
+  background: #fff0ed;
+  color: #b42318;
+}
+
+.badge-info {
+  background: #edf2f6;
+  color: #4c5d73;
+}
+
 .header-action {
   min-height: 32px;
   padding: 0 10px;
@@ -387,7 +422,7 @@ textarea::placeholder {
 
 .formatted-output {
   display: flex;
-  flex: 1;
+  flex: 1 1 auto;
   min-height: 0;
   background: var(--code-bg);
 }
@@ -551,6 +586,128 @@ pre {
   color: var(--code-text);
   font: 14px/1.55 "Cascadia Code", Consolas, "Liberation Mono", monospace;
   white-space: pre;
+}
+
+.code-line {
+  display: block;
+  min-height: 1.55em;
+  padding: 0 6px;
+  margin: 0 -6px;
+  border-left: 3px solid transparent;
+}
+
+.code-line.fixed-line {
+  border-left-color: #f5a400;
+  background: rgba(245, 164, 0, 0.12);
+}
+
+.lint-panel {
+  flex: 0 0 auto;
+  border-top: 1px solid var(--border);
+  background: var(--panel);
+}
+
+.lint-panel summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 44px;
+  padding: 0 14px;
+  color: var(--text);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 800;
+  list-style: none;
+}
+
+.lint-panel summary::-webkit-details-marker {
+  display: none;
+}
+
+.lint-panel summary::before {
+  content: "+";
+  color: var(--accent-strong);
+  font-weight: 900;
+}
+
+.lint-panel[open] summary::before {
+  content: "-";
+}
+
+#lintResultCount {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.lint-results {
+  max-height: 230px;
+  overflow: auto;
+  padding: 0 14px 14px;
+}
+
+.lint-empty {
+  margin: 0;
+  padding: 12px 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.lint-item {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 10px;
+  padding: 10px 0;
+  border-top: 1px solid var(--border);
+}
+
+.lint-severity {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 72px;
+  height: 26px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.severity-info {
+  background: #edf2f6;
+  color: #4c5d73;
+}
+
+.severity-warning {
+  background: #fff7df;
+  color: #946200;
+}
+
+.severity-error {
+  background: #fff0ed;
+  color: #b42318;
+}
+
+.lint-message {
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 750;
+}
+
+.lint-meta {
+  margin-top: 5px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.lint-meta code {
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: var(--bg);
+  color: var(--text);
+  font-family: "Cascadia Code", Consolas, monospace;
 }
 
 .token-keyword {

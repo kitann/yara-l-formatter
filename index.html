@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>YARALint | Format and Clean YARA-L Rules Online</title>
-    <meta name="description" content="Format, clean, and preview YARA-L and YARA-style detection rules online with proper indentation, syntax highlighting, examples, and copy/download support.">
+    <meta name="description" content="Format, lint, auto-fix, and preview YARA-L and YARA-style detection rules online with syntax validation, fix summaries, examples, and copy/download support.">
     <meta name="keywords" content="YARA-L formatter, YARA formatter, YARA-L rules, cybersecurity tools, detection engineering, Chronicle YARA-L, SIEM rules, security rule formatter">
     <meta name="author" content="Saheed Adeoye">
     <meta name="robots" content="index, follow">
@@ -12,7 +12,7 @@
     <meta name="theme-color" content="#f5f7f9" media="(prefers-color-scheme: light)">
     <meta name="theme-color" content="#080d18" media="(prefers-color-scheme: dark)">
     <meta property="og:title" content="YARALint">
-    <meta property="og:description" content="A lightweight online formatter for YARA-L rules with clean indentation, syntax highlighting, examples, and copy/download support.">
+    <meta property="og:description" content="A lightweight online linting assistant for YARA-L rules with formatting, syntax validation, auto-fixes, fix summaries, examples, and copy/download support.">
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://yaralint.com/">
     <meta property="og:site_name" content="YARALint">
@@ -46,7 +46,7 @@
               <h1 class="sr-only-heading">YARALint</h1>
               <span class="version">v1.0.5</span>
             </div>
-            <p>Paste a YARA-L rule, format it, then copy or download the cleaned version.</p>
+            <p>Paste a YARA-L rule to format, lint, auto-fix, then copy or download the cleaned version.</p>
           </div>
         </div>
         <div class="actions">
@@ -99,11 +99,23 @@
         </section>
 
         <div class="editor-pane">
-          <span>Formatter Output</span>
+          <span class="pane-header output-header">
+            <span>Formatter Output</span>
+            <span id="validationBadge" class="validation-badge badge-info">READY</span>
+          </span>
           <textarea id="output" class="sr-only-output" spellcheck="false" readonly aria-hidden="true" tabindex="-1"></textarea>
           <div class="formatted-output">
             <pre><code id="highlightedOutput"></code></pre>
           </div>
+          <details id="lintResultsPanel" class="lint-panel">
+            <summary>
+              <span>Lint Results</span>
+              <span id="lintResultCount">No rule analyzed</span>
+            </summary>
+            <div id="lintResults" class="lint-results">
+              <p class="lint-empty">Format a rule to see lint results.</p>
+            </div>
+          </details>
         </div>
       </section>
 
