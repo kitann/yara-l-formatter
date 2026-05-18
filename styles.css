@@ -204,24 +204,27 @@ textarea::placeholder {
   color: #8fb2b0;
 }
 
-.highlight-preview {
-  border-top: 1px solid var(--border);
+.sr-only-output {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  min-height: 1px;
+  padding: 0;
+  border: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.formatted-output {
+  display: flex;
+  flex: 1;
+  min-height: 0;
   background: var(--code-bg);
 }
 
-.highlight-preview > span {
-  display: block;
-  padding: 10px 14px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-  color: #a8c6c3;
-  font-size: 12px;
-  font-weight: 700;
-  text-transform: uppercase;
-}
-
 pre {
-  min-height: 180px;
-  max-height: 320px;
+  width: 100%;
+  min-height: 100%;
   margin: 0;
   overflow: auto;
   padding: 16px;

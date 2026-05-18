@@ -35,7 +35,7 @@
 
       <section class="workspace" aria-label="YARA-L editor">
         <label class="editor-pane">
-          <span>Input</span>
+          <span>INPUT</span>
           <textarea id="input" spellcheck="false" placeholder="rule suspicious_login {
   meta:
     author = &quot;SOC&quot;
@@ -49,10 +49,9 @@
         </label>
 
         <div class="editor-pane">
-          <span>Formatted output</span>
-          <textarea id="output" spellcheck="false" readonly></textarea>
-          <div class="highlight-preview">
-            <span>Highlighted preview</span>
+          <span>Formatter Output</span>
+          <textarea id="output" class="sr-only-output" spellcheck="false" readonly aria-hidden="true" tabindex="-1"></textarea>
+          <div class="formatted-output">
             <pre><code id="highlightedOutput"></code></pre>
           </div>
         </div>
