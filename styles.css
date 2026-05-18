@@ -182,9 +182,10 @@ p {
 .toolbar p {
   max-width: 300px;
   color: #4c5d73;
-  font-family: "Nasalization Rg", "Nasalization", "Orbitron", Inter, ui-sans-serif, system-ui, sans-serif;
-  font-size: 13px;
+  font-family: "Dreaming Outloud Pro", "Dreaming Outloud PRO", "Comic Sans MS", "Segoe Print", cursive;
+  font-size: 14px;
   line-height: 1.35;
+  text-transform: none;
 }
 
 body.dark-mode .toolbar {
