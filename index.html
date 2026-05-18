@@ -28,7 +28,7 @@
         <div>
           <div class="title-row">
             <h1>YARA-L Formatter</h1>
-            <span class="version">v1.0.3</span>
+            <span class="version">v1.0.4</span>
           </div>
           <p>Paste a YARA-L rule, format it, then copy or download the cleaned version.</p>
         </div>
@@ -58,7 +58,10 @@
 
       <section class="workspace" aria-label="YARA-L editor">
         <label class="editor-pane">
-          <span>INPUT</span>
+          <span class="pane-header">
+            <span>INPUT</span>
+            <button id="chooseExampleBtn" type="button" class="header-action">Choose an example</button>
+          </span>
           <textarea id="input" spellcheck="false" placeholder="rule suspicious_login {
   meta:
     author = &quot;SOC&quot;
@@ -71,6 +74,22 @@
 }"></textarea>
         </label>
 
+        <section id="examplePanel" class="example-panel" aria-label="YARA example browser" hidden>
+          <div class="example-panel-header">
+            <div>
+              <h2>YARA Examples</h2>
+              <p>Neo23x0/signature-base curated examples</p>
+            </div>
+            <button id="closeExampleBtn" type="button" class="icon-button" aria-label="Close examples">x</button>
+          </div>
+          <div class="example-panel-tools">
+            <input id="exampleSearch" type="search" placeholder="Search filename, tag, or keyword">
+            <button id="randomExampleBtn" type="button" class="secondary">Random Example</button>
+          </div>
+          <div id="exampleCount" class="example-count">Loading examples...</div>
+          <div id="exampleList" class="example-list"></div>
+        </section>
+
         <div class="editor-pane">
           <span>Formatter Output</span>
           <textarea id="output" class="sr-only-output" spellcheck="false" readonly aria-hidden="true" tabindex="-1"></textarea>
@@ -81,16 +100,6 @@
       </section>
 
       <section class="options" aria-label="Formatting options">
-        <label>
-          <span id="exampleRulesLabel">Example rules</span>
-          <select id="exampleRules" aria-labelledby="exampleRulesLabel">
-            <option value="">Choose an example</option>
-            <option value="login">Suspicious login</option>
-            <option value="process">Encoded PowerShell</option>
-            <option value="network">Unusual network connection</option>
-          </select>
-        </label>
-        <button id="loadExampleBtn" type="button" class="secondary">Load Example</button>
         <label>
           <span id="indentSizeLabel">Indent size</span>
           <select id="indentSize" aria-labelledby="indentSizeLabel">

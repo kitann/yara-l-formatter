@@ -205,6 +205,7 @@ select {
 }
 
 .workspace {
+  position: relative;
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 16px;
@@ -220,13 +221,28 @@ select {
   background: var(--panel);
 }
 
-.editor-pane > span {
+.editor-pane > span,
+.pane-header {
   padding: 12px 14px;
   border-bottom: 1px solid var(--border);
   color: var(--muted);
   font-size: 13px;
   font-weight: 700;
   text-transform: uppercase;
+}
+
+.pane-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.header-action {
+  min-height: 32px;
+  padding: 0 10px;
+  font-size: 12px;
+  text-transform: none;
 }
 
 textarea {
@@ -267,6 +283,151 @@ textarea::placeholder {
 body.dark-mode textarea,
 body.dark-mode .formatted-output {
   background: #082a52;
+}
+
+.example-panel {
+  position: absolute;
+  z-index: 12;
+  top: 48px;
+  left: 14px;
+  width: min(640px, calc(50% - 22px));
+  max-height: min(620px, calc(100vh - 170px));
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel);
+  box-shadow: 0 20px 55px rgba(16, 24, 32, 0.22);
+  overflow: hidden;
+}
+
+.example-panel[hidden] {
+  display: none;
+}
+
+.example-panel-header,
+.example-panel-tools {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.example-panel-header {
+  justify-content: space-between;
+}
+
+.example-panel h2 {
+  margin: 0;
+  font-size: 18px;
+  line-height: 1.2;
+}
+
+.example-panel p {
+  margin-top: 3px;
+  font-size: 13px;
+}
+
+.icon-button {
+  min-width: 34px;
+  min-height: 34px;
+  padding: 0;
+  background: var(--panel);
+  color: var(--text);
+}
+
+.example-panel-tools input {
+  width: 100%;
+  min-height: 40px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  padding: 0 12px;
+}
+
+.example-count {
+  padding: 10px 14px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.example-list {
+  overflow: auto;
+  padding: 0 10px 12px;
+}
+
+.example-category {
+  margin-top: 10px;
+}
+
+.example-category-title {
+  padding: 8px 4px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.example-item {
+  width: 100%;
+  min-height: auto;
+  margin: 0 0 8px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--text);
+  text-align: left;
+}
+
+.example-item:hover {
+  background: #edf2f6;
+}
+
+body.dark-mode .example-item:hover {
+  background: #1b2940;
+}
+
+.example-file {
+  display: block;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.example-tags {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 7px;
+}
+
+.example-tag {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: rgba(42, 168, 137, 0.13);
+  color: var(--accent-strong);
+  font-size: 12px;
+  font-weight: 750;
+}
+
+body.dark-mode .example-tag {
+  color: #86efac;
+}
+
+.example-snippet {
+  margin-top: 8px;
+  color: var(--muted);
+  font: 12px/1.45 "Cascadia Code", Consolas, "Liberation Mono", monospace;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 pre {
@@ -398,6 +559,11 @@ pre {
 
   .workspace {
     grid-template-columns: 1fr;
+  }
+
+  .example-panel {
+    left: 0;
+    width: 100%;
   }
 
   .editor-pane {

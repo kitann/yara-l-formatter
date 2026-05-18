@@ -4,8 +4,13 @@ const formatBtn = document.querySelector("#formatBtn");
 const copyBtn = document.querySelector("#copyBtn");
 const downloadBtn = document.querySelector("#downloadBtn");
 const clearBtn = document.querySelector("#clearBtn");
-const exampleRules = document.querySelector("#exampleRules");
-const loadExampleBtn = document.querySelector("#loadExampleBtn");
+const chooseExampleBtn = document.querySelector("#chooseExampleBtn");
+const closeExampleBtn = document.querySelector("#closeExampleBtn");
+const randomExampleBtn = document.querySelector("#randomExampleBtn");
+const examplePanel = document.querySelector("#examplePanel");
+const exampleSearch = document.querySelector("#exampleSearch");
+const exampleList = document.querySelector("#exampleList");
+const exampleCount = document.querySelector("#exampleCount");
 const indentSize = document.querySelector("#indentSize");
 const themeMode = document.querySelector("#themeMode");
 const compactBlankLines = document.querySelector("#compactBlankLines");
@@ -14,43 +19,30 @@ const highlightedOutput = document.querySelector("#highlightedOutput");
 const toast = document.querySelector("#toast");
 
 const sectionPattern = /^(meta|strings|events|match|outcome|condition|options):$/i;
-const examples = {
-  login: `rule suspicious_login {
-meta:
-author = "Saheed Adeoye"
-description = "Detect suspicious user login events"
-
-events:
-$e.metadata.event_type = "USER_LOGIN"
-$e.principal.user.userid = $user
-$e.security_result.action = "ALLOW"
-
-condition:
-$e
-}`,
-  process: `rule encoded_powershell {
-meta:
-description = "Detect encoded PowerShell command usage"
-
-events:
-$e.metadata.event_type = "PROCESS_LAUNCH"
-$e.target.process.command_line = /(?i)powershell.*-enc/
-
-condition:
-$e
-}`,
-  network: `rule unusual_network_connection {
-meta:
-description = "Detect outbound connection to a watched address"
-
-events:
-$e.metadata.event_type = "NETWORK_CONNECTION"
-$e.target.ip = "203.0.113.10"
-
-condition:
-$e
-}`
-};
+const githubRawBase = "https://raw.githubusercontent.com/Neo23x0/signature-base/master/yara/";
+const exampleCachePrefix = "yaraLFormatterExample:";
+const examples = [
+  { filename: "apt_cobaltstrike.yar", category: "APT", tags: ["apt", "cobalt strike", "beacon"] },
+  { filename: "apt_apt28.yar", category: "APT", tags: ["apt28", "fancy bear", "malware"] },
+  { filename: "apt_apt29_nobelium_may21.yar", category: "APT", tags: ["apt29", "nobelium", "backdoor"] },
+  { filename: "apt_fin7.yar", category: "APT", tags: ["fin7", "crimeware", "backdoor"] },
+  { filename: "apt_blackenergy.yar", category: "APT", tags: ["blackenergy", "ics", "malware"] },
+  { filename: "gen_webshells.yar", category: "Webshells", tags: ["webshell", "php", "jsp"] },
+  { filename: "gen_webshells_ext_vars.yar", category: "Webshells", tags: ["webshell", "external vars"] },
+  { filename: "gen_mal_3cx_compromise_mar23.yar", category: "Malware", tags: ["3cx", "supply chain", "malware"] },
+  { filename: "gen_mimikatz.yar", category: "Malware", tags: ["mimikatz", "credential theft"] },
+  { filename: "gen_powershell_empire.yar", category: "Loaders", tags: ["powershell", "empire", "loader"] },
+  { filename: "gen_xor_hunting.yar", category: "Loaders", tags: ["xor", "encoded", "hunting"] },
+  { filename: "expl_log4j_cve_2021_44228.yar", category: "Exploits", tags: ["log4j", "cve", "exploit"] },
+  { filename: "expl_proxyshell.yar", category: "Exploits", tags: ["exchange", "proxyshell", "webshell"] },
+  { filename: "vuln_moveit_0day_jun23.yar", category: "Exploits", tags: ["moveit", "zero-day", "cve"] },
+  { filename: "generic_anomalies.yar", category: "Generic", tags: ["anomaly", "hunting", "generic"] },
+  { filename: "general_cloaking.yar", category: "Generic", tags: ["cloaking", "evasion"] }
+].map((example) => ({
+  ...example,
+  url: `${githubRawBase}${example.filename}`,
+  keywords: `${example.filename} ${example.category} ${example.tags.join(" ")}`.toLowerCase()
+}));
 let toastTimer;
 
 function setStatus(message, type = "ok") {
@@ -256,23 +248,110 @@ function downloadOutput() {
 function clearEditors() {
   input.value = "";
   output.value = "";
-  exampleRules.value = "";
   updateHighlightedOutput();
   setStatus("Editors cleared.");
   input.focus();
 }
 
-function loadExampleRule() {
-  const example = examples[exampleRules.value];
+function getExampleCacheKey(example) {
+  return `${exampleCachePrefix}${example.filename}`;
+}
 
-  if (!example) {
-    setStatus("Choose an example rule first.", "warning");
+function getExampleSnippet(example) {
+  return example.snippet || example.tags.join(" | ");
+}
+
+function renderExamples() {
+  const query = exampleSearch.value.trim().toLowerCase();
+  const matches = examples.filter((example) => !query || example.keywords.includes(query));
+  const categories = [...new Set(matches.map((example) => example.category))];
+
+  exampleCount.textContent = `${matches.length} of ${examples.length} examples`;
+  exampleList.innerHTML = "";
+
+  if (matches.length === 0) {
+    exampleList.innerHTML = '<div class="example-count">No examples matched your search.</div>';
     return;
   }
 
-  input.value = example;
-  runFormatter();
-  showToast("Example rule loaded.");
+  categories.forEach((category) => {
+    const section = document.createElement("section");
+    section.className = "example-category";
+    section.innerHTML = `<div class="example-category-title">${category}</div>`;
+
+    matches
+      .filter((example) => example.category === category)
+      .forEach((example) => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "example-item";
+        button.title = getExampleSnippet(example);
+        button.innerHTML = `
+          <span class="example-file">${example.filename}</span>
+          <span class="example-tags">${example.tags.map((tag) => `<span class="example-tag">${tag}</span>`).join("")}</span>
+          <span class="example-snippet">${getExampleSnippet(example)}</span>
+        `;
+        button.addEventListener("click", () => loadRemoteExample(example));
+        section.appendChild(button);
+      });
+
+    exampleList.appendChild(section);
+  });
+}
+
+async function loadRemoteExample(example) {
+  const cacheKey = getExampleCacheKey(example);
+  const cachedRule = localStorage.getItem(cacheKey);
+
+  if (cachedRule) {
+    input.value = cachedRule;
+    runFormatter();
+    closeExamplePanel();
+    showToast(`Loaded ${example.filename} from cache.`);
+    return;
+  }
+
+  exampleCount.textContent = `Loading ${example.filename}...`;
+
+  try {
+    const response = await fetch(example.url);
+
+    if (!response.ok) {
+      throw new Error(`GitHub returned ${response.status}`);
+    }
+
+    const ruleText = await response.text();
+    localStorage.setItem(cacheKey, ruleText);
+    input.value = ruleText;
+    runFormatter();
+    closeExamplePanel();
+    showToast(`Loaded ${example.filename}.`);
+  } catch (error) {
+    exampleCount.textContent = `Could not load ${example.filename}. Check your connection or GitHub availability.`;
+    setStatus(`Example load failed: ${error.message}`, "error");
+  }
+}
+
+function openExamplePanel() {
+  examplePanel.hidden = false;
+  renderExamples();
+  exampleSearch.focus();
+}
+
+function closeExamplePanel() {
+  examplePanel.hidden = true;
+}
+
+function loadRandomExample() {
+  const source = exampleSearch.value.trim()
+    ? examples.filter((example) => example.keywords.includes(exampleSearch.value.trim().toLowerCase()))
+    : examples;
+
+  const randomExample = source[Math.floor(Math.random() * source.length)];
+
+  if (randomExample) {
+    loadRemoteExample(randomExample);
+  }
 }
 
 function applyTheme() {
@@ -298,7 +377,10 @@ formatBtn.addEventListener("click", runFormatter);
 copyBtn.addEventListener("click", copyOutput);
 downloadBtn.addEventListener("click", downloadOutput);
 clearBtn.addEventListener("click", clearEditors);
-loadExampleBtn.addEventListener("click", loadExampleRule);
+chooseExampleBtn.addEventListener("click", openExamplePanel);
+closeExampleBtn.addEventListener("click", closeExamplePanel);
+randomExampleBtn.addEventListener("click", loadRandomExample);
+exampleSearch.addEventListener("input", renderExamples);
 indentSize.addEventListener("change", runFormatter);
 themeMode.addEventListener("change", applyTheme);
 compactBlankLines.addEventListener("change", runFormatter);
@@ -309,5 +391,12 @@ input.addEventListener("keydown", (event) => {
   }
 });
 
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && !examplePanel.hidden) {
+    closeExamplePanel();
+  }
+});
+
 initializeTheme();
+renderExamples();
 setStatus("Ready.");
