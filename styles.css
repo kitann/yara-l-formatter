@@ -371,8 +371,8 @@ select {
 }
 
 .badge-fixed {
-  background: #fff7df;
-  color: #946200;
+  background: #e9f7f4;
+  color: #0c534a;
 }
 
 .badge-invalid {
@@ -597,8 +597,8 @@ pre {
 }
 
 .code-line.fixed-line {
-  border-left-color: #f5a400;
-  background: rgba(245, 164, 0, 0.12);
+  border-left-color: #2aa889;
+  background: rgba(42, 168, 137, 0.14);
 }
 
 .lint-panel {
@@ -675,8 +675,8 @@ pre {
 }
 
 .severity-info {
-  background: #edf2f6;
-  color: #4c5d73;
+  background: #e8f3ff;
+  color: #155eef;
 }
 
 .severity-warning {
@@ -687,6 +687,11 @@ pre {
 .severity-error {
   background: #fff0ed;
   color: #b42318;
+}
+
+.severity-fixed {
+  background: #e9f7f4;
+  color: #0c534a;
 }
 
 .lint-message {

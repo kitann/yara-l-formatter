@@ -209,8 +209,164 @@ function formatYaraL(source, options) {
 const yaraLintEngine = (() => {
   const validStringModifiers = new Set(["ascii", "wide", "nocase", "fullword", "private"]);
 
-  function makeIssue({ severity = "INFO", line = null, message, original = "", corrected = "", fixed = false }) {
-    return { severity, line, message, original, corrected, fixed };
+  function makeIssue({ severity = "INFO", line = null, message, original = "", corrected = "", fixed = false, recommendation = "" }) {
+    return { severity, line, message, original, corrected, fixed, recommendation };
+  }
+
+  function isSupportedModifier(modifier) {
+    return validStringModifiers.has(modifier) || /^(xor|base64|base64wide)(\(.+\))?$/.test(modifier);
+  }
+
+  function quoteYaraText(value) {
+    return `"${value.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
+  }
+
+  function getAutoQuoteMessage(value) {
+    if (/^[0-9]+$/.test(value)) {
+      return "Auto-quoted accidental numeric text assignment.";
+    }
+
+    if (/@/.test(value) || /\bmailto:/i.test(value) || /\b[a-z0-9.-]+\.[a-z]{2,}\b/i.test(value)) {
+      return "Auto-quoted invalid raw email/domain string assignment.";
+    }
+
+    return "Auto-quoted invalid text string assignment.";
+  }
+
+  function shouldAutoQuoteBareString(value) {
+    if (!value || value.startsWith("$")) {
+      return false;
+    }
+
+    if (/[{};]/.test(value) || /\b(and|or|not)\b/i.test(value)) {
+      return false;
+    }
+
+    if (/(^|[^=!<>])([=!<>]=|contains|matches| at | in )/i.test(value)) {
+      return false;
+    }
+
+    return true;
+  }
+
+  function splitBareValueAndModifiers(value) {
+    const parts = value.split(/\s+/);
+
+    if (parts.length === 1) {
+      return { value, modifiers: "" };
+    }
+
+    let modifierStart = parts.length;
+
+    while (modifierStart > 0 && isSupportedModifier(parts[modifierStart - 1])) {
+      modifierStart -= 1;
+    }
+
+    if (modifierStart > 0 && modifierStart < parts.length) {
+      return {
+        value: parts.slice(0, modifierStart).join(" "),
+        modifiers: parts.slice(modifierStart).join(" ")
+      };
+    }
+
+    return { value, modifiers: "" };
+  }
+
+  function hasUnclosedHexValue(lines) {
+    return lines.some((line) => {
+      const trimmed = line.trim();
+      return /^\$[A-Za-z_][\w]*\s*=\s*\{/.test(trimmed) && !/\}/.test(trimmed);
+    });
+  }
+
+  function inferSectionIndent(lines) {
+    const section = lines.find((line) => getSectionName(line));
+    const match = section ? section.match(/^(\s*)/) : null;
+    return match ? match[1] : "  ";
+  }
+
+  function inferChildIndent(lines, sectionName) {
+    let insideSection = false;
+
+    for (const line of lines) {
+      const currentSection = getSectionName(line);
+
+      if (currentSection) {
+        insideSection = currentSection === sectionName;
+        continue;
+      }
+
+      if (!insideSection || !line.trim() || line.trim().startsWith("}")) {
+        continue;
+      }
+
+      const match = line.match(/^(\s+)/);
+
+      if (match) {
+        return match[1];
+      }
+    }
+
+    return `${inferSectionIndent(lines)}  `;
+  }
+
+  function findFinalRuleClosingLine(lines) {
+    for (let index = lines.length - 1; index >= 0; index -= 1) {
+      if (lines[index].trim() === "}") {
+        return index;
+      }
+    }
+
+    return -1;
+  }
+
+  function getStringIdentifiers(lines, context) {
+    const identifiers = [];
+
+    lines.forEach((line, index) => {
+      const lineNumber = index + 1;
+
+      if (context.sectionsByLine.get(lineNumber) !== "strings") {
+        return;
+      }
+
+      const parsed = parseStringDeclaration(line);
+
+      if (parsed) {
+        identifiers.push(parsed.id);
+      }
+    });
+
+    return identifiers;
+  }
+
+  function shiftFixedLinesAfterInsert(state, insertIndex, count) {
+    const shifted = new Set();
+
+    state.fixedLines.forEach((lineNumber) => {
+      shifted.add(lineNumber > insertIndex ? lineNumber + count : lineNumber);
+    });
+
+    state.fixedLines = shifted;
+  }
+
+  function markFixedRange(state, startIndex, count) {
+    for (let offset = 0; offset < count; offset += 1) {
+      state.fixedLines.add(startIndex + offset + 1);
+    }
+  }
+
+  function getUniqueStringIdentifier(id, seen) {
+    const base = id.replace(/_\d+$/, "");
+    let counter = 2;
+    let candidate = `${base}_${counter}`;
+
+    while (seen.has(candidate)) {
+      counter += 1;
+      candidate = `${base}_${counter}`;
+    }
+
+    return candidate;
   }
 
   function lineWithoutComment(line) {
@@ -331,11 +487,11 @@ const yaraLintEngine = (() => {
       };
     }
 
-    const firstWhitespace = value.search(/\s/);
+    const bare = splitBareValueAndModifiers(value);
     return {
       kind: "bare",
-      value: firstWhitespace === -1 ? value : value.slice(0, firstWhitespace),
-      modifiers: firstWhitespace === -1 ? "" : value.slice(firstWhitespace).trim(),
+      value: bare.value,
+      modifiers: bare.modifiers,
       validValueBoundary: true
     };
   }
@@ -425,46 +581,6 @@ const yaraLintEngine = (() => {
 
   const validators = [
     {
-      id: "brace-balance",
-      validate(state) {
-        let balance = 0;
-
-        state.lines.forEach((line, index) => {
-          const opens = countOutsideQuotes(line, "{");
-          const closes = countOutsideQuotes(line, "}");
-          balance += opens - closes;
-
-          if (balance < 0) {
-            state.issues.push(makeIssue({
-              severity: "ERROR",
-              line: index + 1,
-              message: "Closing brace appears before a matching opening brace.",
-              original: line
-            }));
-            balance = 0;
-          }
-        });
-
-        if (balance > 0) {
-          state.issues.push(makeIssue({
-            severity: "ERROR",
-            message: `${balance} opening brace${balance === 1 ? "" : "s"} missing a closing brace.`
-          }));
-        }
-      }
-    },
-    {
-      id: "required-condition",
-      validate(state) {
-        if (!state.lines.some((line) => /^condition:$/i.test(line.trim()))) {
-          state.issues.push(makeIssue({
-            severity: "ERROR",
-            message: "Missing required condition: block."
-          }));
-        }
-      }
-    },
-    {
       id: "duplicate-rule-identifiers",
       validate(state) {
         const seen = new Map();
@@ -481,7 +597,8 @@ const yaraLintEngine = (() => {
               severity: "ERROR",
               line: index + 1,
               message: `Duplicate rule identifier: ${match[1]}.`,
-              original: line
+              original: line,
+              recommendation: "Rename one of the rules so every rule identifier is unique."
             }));
             return;
           }
@@ -504,68 +621,130 @@ const yaraLintEngine = (() => {
             return;
           }
 
-          const parsed = parseStringDeclaration(line);
+          let currentLine = state.lines[index];
+          let parsed = parseStringDeclaration(currentLine);
 
           if (!parsed) {
             state.issues.push(makeIssue({
               severity: "ERROR",
               line: lineNumber,
               message: "Invalid string declaration. Expected format like $id = \"text\", $id = /regex/, or $id = { 4D 5A }.",
-              original: line
+              original: currentLine,
+              recommendation: "Use a valid YARA string identifier and assignment syntax."
             }));
             return;
           }
 
           if (seen.has(parsed.id)) {
-            state.issues.push(makeIssue({
-              severity: "ERROR",
-              line: lineNumber,
-              message: `Duplicate string identifier: ${parsed.id}.`,
-              original: line
-            }));
+            if (state.allowFixes) {
+              const originalId = parsed.id;
+              const correctedId = getUniqueStringIdentifier(originalId, seen);
+              parsed = { ...parsed, id: correctedId };
+              const corrected = rebuildStringDeclaration(parsed, parsed.value);
+              state.lines[index] = corrected;
+              state.fixedLines.add(lineNumber);
+              state.issues.push(makeIssue({
+                severity: "FIXED",
+                line: lineNumber,
+                message: `Renamed duplicate string identifier ${originalId} to ${correctedId}.`,
+                original: currentLine,
+                corrected,
+                fixed: true,
+                recommendation: "Review direct condition references if this rule did not use any/all of them."
+              }));
+              currentLine = corrected;
+              seen.set(correctedId, lineNumber);
+            } else {
+              state.issues.push(makeIssue({
+                severity: "ERROR",
+                line: lineNumber,
+                message: `Duplicate string identifier: ${parsed.id}.`,
+                original: currentLine,
+                recommendation: "Rename the duplicate identifier and update condition references if needed."
+              }));
+              return;
+            }
           } else {
             seen.set(parsed.id, lineNumber);
           }
 
           if (!parsed.validValueBoundary) {
-            state.issues.push(makeIssue({
-              severity: "ERROR",
-              line: lineNumber,
-              message: "Unterminated string, regex, or hex value.",
-              original: line
-            }));
+            if (state.allowFixes && (parsed.kind === "text" || parsed.kind === "singleText")) {
+              const correctedValue = parsed.kind === "text"
+                ? `${parsed.value}"`
+                : quoteYaraText(parsed.value.slice(1));
+              const corrected = rebuildStringDeclaration(parsed, correctedValue);
+              state.lines[index] = corrected;
+              state.fixedLines.add(lineNumber);
+              state.issues.push(makeIssue({
+                severity: "FIXED",
+                line: lineNumber,
+                message: "Added missing closing quote to string assignment.",
+                original: currentLine,
+                corrected,
+                fixed: true
+              }));
+              currentLine = corrected;
+              parsed = parseStringDeclaration(currentLine);
+
+              if (!parsed) {
+                return;
+              }
+            } else {
+              state.issues.push(makeIssue({
+                severity: "ERROR",
+                line: lineNumber,
+                message: "Unterminated string, regex, or hex value.",
+                original: currentLine,
+                recommendation: "Close the string, regex, or hex value before formatting again."
+              }));
+              return;
+            }
           }
 
-          if (parsed.kind === "bare" && /^[0-9]+$/.test(parsed.value)) {
-            const corrected = rebuildStringDeclaration(parsed, `"${parsed.value}"`);
+          if (parsed.kind === "bare" && state.allowFixes && shouldAutoQuoteBareString(parsed.value)) {
+            const corrected = rebuildStringDeclaration(parsed, quoteYaraText(parsed.value));
             state.lines[index] = corrected;
             state.fixedLines.add(lineNumber);
             state.issues.push(makeIssue({
-              severity: "WARNING",
+              severity: "FIXED",
               line: lineNumber,
-              message: "Converted invalid integer assignment to quoted text string.",
-              original: line,
+              message: getAutoQuoteMessage(parsed.value),
+              original: currentLine,
               corrected,
               fixed: true
             }));
+            currentLine = corrected;
           } else if (parsed.kind === "singleText" && parsed.validValueBoundary) {
-            const corrected = rebuildStringDeclaration(parsed, normalizeSingleQuotedValue(parsed.value));
-            state.lines[index] = corrected;
-            state.fixedLines.add(lineNumber);
-            state.issues.push(makeIssue({
-              severity: "INFO",
-              line: lineNumber,
-              message: "Normalized single-quoted string to YARA-compatible double quotes.",
-              original: line,
-              corrected,
-              fixed: true
-            }));
+            if (state.allowFixes) {
+              const corrected = rebuildStringDeclaration(parsed, normalizeSingleQuotedValue(parsed.value));
+              state.lines[index] = corrected;
+              state.fixedLines.add(lineNumber);
+              state.issues.push(makeIssue({
+                severity: "FIXED",
+                line: lineNumber,
+                message: "Normalized single-quoted string to YARA-compatible double quotes.",
+                original: currentLine,
+                corrected,
+                fixed: true
+              }));
+              currentLine = corrected;
+            } else {
+              state.issues.push(makeIssue({
+                severity: "ERROR",
+                line: lineNumber,
+                message: "Single-quoted strings are not valid YARA string values.",
+                original: currentLine,
+                recommendation: "Use double quotes for text strings."
+              }));
+            }
           } else if (parsed.kind === "bare") {
             state.issues.push(makeIssue({
               severity: "ERROR",
               line: lineNumber,
               message: "String value must be quoted text, a regex, or a hex string.",
-              original: line
+              original: currentLine,
+              recommendation: "Wrap plain text string values in double quotes, or use /regex/ or { hex } syntax."
             }));
           }
 
@@ -575,7 +754,8 @@ const yaraLintEngine = (() => {
                 severity: "ERROR",
                 line: lineNumber,
                 message,
-                original: line
+                original: currentLine,
+                recommendation: "Use two-character hex bytes, wildcards, jumps, or grouping tokens inside { }."
               }));
             });
           }
@@ -585,10 +765,105 @@ const yaraLintEngine = (() => {
               severity: "ERROR",
               line: lineNumber,
               message: `Invalid string modifier: ${modifier}.`,
-              original: line
+              original: currentLine,
+              recommendation: "Use supported YARA string modifiers such as ascii, wide, nocase, fullword, private, xor, base64, or base64wide."
             }));
           });
         });
+      }
+    },
+    {
+      id: "required-condition",
+      validate(state) {
+        if (state.lines.some((line) => /^condition:$/i.test(line.trim()))) {
+          return;
+        }
+
+        const identifiers = getStringIdentifiers(state.lines, state.context);
+
+        if (state.allowFixes && identifiers.length > 0) {
+          const sectionIndent = inferSectionIndent(state.lines);
+          const childIndent = inferChildIndent(state.lines, "strings");
+          const insertion = [`${sectionIndent}condition:`, `${childIndent}any of them`];
+          const finalBraceIndex = findFinalRuleClosingLine(state.lines);
+          const insertIndex = finalBraceIndex === -1 ? state.lines.length : finalBraceIndex;
+          const shouldAddBlankLine = insertIndex > 0 && state.lines[insertIndex - 1].trim() !== "";
+          const linesToInsert = shouldAddBlankLine ? ["", ...insertion] : insertion;
+
+          shiftFixedLinesAfterInsert(state, insertIndex, linesToInsert.length);
+          state.lines.splice(insertIndex, 0, ...linesToInsert);
+          markFixedRange(state, insertIndex, linesToInsert.length);
+          state.context = buildContext(state.lines);
+          state.issues.push(makeIssue({
+            severity: "FIXED",
+            line: insertIndex + 1,
+            message: "Added missing condition block using any of them.",
+            original: "(missing condition block)",
+            corrected: insertion.join("\n"),
+            fixed: true,
+            recommendation: "Review the generated condition to confirm it matches the intended detection logic."
+          }));
+          return;
+        }
+
+        state.issues.push(makeIssue({
+          severity: "ERROR",
+          message: "Missing required condition: block.",
+          original: "(missing condition block)",
+          recommendation: identifiers.length > 0
+            ? "Add a condition block, for example: condition: any of them."
+            : "Add a condition block that expresses the rule logic."
+        }));
+      }
+    },
+    {
+      id: "brace-balance",
+      validate(state) {
+        let balance = 0;
+
+        state.lines.forEach((line, index) => {
+          const opens = countOutsideQuotes(line, "{");
+          const closes = countOutsideQuotes(line, "}");
+          balance += opens - closes;
+
+          if (balance < 0) {
+            state.issues.push(makeIssue({
+              severity: "ERROR",
+              line: index + 1,
+              message: "Closing brace appears before a matching opening brace.",
+              original: line,
+              recommendation: "Remove the extra closing brace or add the missing opening brace."
+            }));
+            balance = 0;
+          }
+        });
+
+        if (balance === 1 && state.allowFixes && !hasUnclosedHexValue(state.lines)) {
+          const insertIndex = state.lines.length;
+          state.lines.push("}");
+          markFixedRange(state, insertIndex, 1);
+          state.context = buildContext(state.lines);
+          state.issues.push(makeIssue({
+            severity: "FIXED",
+            line: insertIndex + 1,
+            message: "Added missing closing rule brace.",
+            original: "(missing closing brace)",
+            corrected: "}",
+            fixed: true
+          }));
+          return;
+        }
+
+        if (balance > 0) {
+          state.issues.push(makeIssue({
+            severity: "ERROR",
+            message: `${balance} opening brace${balance === 1 ? "" : "s"} missing a closing brace.`,
+            original: "(unbalanced braces)",
+            recommendation: hasUnclosedHexValue(state.lines)
+              ? "Review malformed hex strings before adding braces automatically."
+              : "Add the missing closing brace manually so the rule boundary is clear."
+          }));
+        }
       }
     },
     {
@@ -608,11 +883,22 @@ const yaraLintEngine = (() => {
             return;
           }
 
+          if (!state.allowFixes) {
+            state.issues.push(makeIssue({
+              severity: "ERROR",
+              line: lineNumber,
+              message: "Single-quoted meta value should be normalized to double quotes.",
+              original: line,
+              recommendation: "Use double quotes for meta text values."
+            }));
+            return;
+          }
+
           const corrected = rebuildMetaAssignment(parsed, normalizeSingleQuotedValue(parsed.value));
           state.lines[index] = corrected;
           state.fixedLines.add(lineNumber);
           state.issues.push(makeIssue({
-            severity: "INFO",
+            severity: "FIXED",
             line: lineNumber,
             message: "Normalized meta value from single quotes to double quotes.",
             original: line,
@@ -624,25 +910,40 @@ const yaraLintEngine = (() => {
     }
   ];
 
-  function lintAndFix(source) {
-    const lines = source.replace(/\r\n?/g, "\n").split("\n");
+  function runValidatorPass(lines, { allowFixes, fixedLines = new Set() } = {}) {
     const state = {
       lines,
       context: buildContext(lines),
       issues: [],
-      fixedLines: new Set()
+      fixedLines: new Set(fixedLines),
+      allowFixes
     };
 
     validators.forEach((validator) => validator.validate(state));
 
-    const hasErrors = state.issues.some((issue) => issue.severity === "ERROR");
-    const hasFixes = state.issues.some((issue) => issue.fixed);
+    return state;
+  }
+
+  function lintAndFix(source) {
+    const normalizedSource = source.replace(/\r\n?/g, "\n").replace(/\n$/, "");
+    const lines = normalizedSource ? normalizedSource.split("\n") : [];
+    const fixState = runValidatorPass(lines, { allowFixes: true });
+    const fixedIssues = fixState.issues.filter((issue) => issue.fixed);
+    const finalState = fixedIssues.length > 0
+      ? runValidatorPass(fixState.lines, { allowFixes: false, fixedLines: fixState.fixedLines })
+      : fixState;
+    const validationIssues = fixedIssues.length > 0
+      ? finalState.issues.filter((issue) => !issue.fixed)
+      : finalState.issues;
+    const issues = [...fixedIssues, ...validationIssues];
+    const hasErrors = issues.some((issue) => issue.severity === "ERROR");
+    const hasFixes = fixedIssues.length > 0;
     const status = hasErrors ? "INVALID" : hasFixes ? "FIXED" : "VALID";
 
     return {
-      text: state.lines.join("\n").trimEnd() + "\n",
-      issues: state.issues,
-      fixedLines: state.fixedLines,
+      text: finalState.lines.join("\n").trimEnd() + "\n",
+      issues,
+      fixedLines: finalState.fixedLines,
       status
     };
   }
@@ -716,6 +1017,7 @@ function renderLintResults(result = null) {
 
     appendLintMeta(body, "Original", issue.original);
     appendLintMeta(body, "Corrected", issue.corrected);
+    appendLintMeta(body, "Recommendation", issue.recommendation);
 
     if (issue.fixed) {
       const fixed = document.createElement("div");
@@ -755,7 +1057,8 @@ function runFormatter() {
   if (lintResult.status === "INVALID") {
     setStatus("Formatted, but lint validation found errors that need review.", "error");
   } else if (lintResult.status === "FIXED") {
-    setStatus("Formatted and auto-fixed recoverable lint issues.", "warning");
+    const fixedCount = lintResult.issues.filter((issue) => issue.fixed).length;
+    setStatus(`Auto-fixed ${fixedCount} issue${fixedCount === 1 ? "" : "s"}. Review Fix Summary before using the rule.`, "warning");
   } else {
     setStatus("Formatted and validated successfully.");
   }
