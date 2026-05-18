@@ -7,6 +7,7 @@ const clearBtn = document.querySelector("#clearBtn");
 const exampleRules = document.querySelector("#exampleRules");
 const loadExampleBtn = document.querySelector("#loadExampleBtn");
 const indentSize = document.querySelector("#indentSize");
+const themeMode = document.querySelector("#themeMode");
 const compactBlankLines = document.querySelector("#compactBlankLines");
 const statusBox = document.querySelector("#status");
 const highlightedOutput = document.querySelector("#highlightedOutput");
@@ -274,12 +275,18 @@ function loadExampleRule() {
   showToast("Example rule loaded.");
 }
 
+function applyTheme() {
+  document.body.classList.toggle("dark-mode", themeMode.value === "dark");
+  showToast(`${themeMode.value === "dark" ? "Dark" : "Light"} mode selected.`);
+}
+
 formatBtn.addEventListener("click", runFormatter);
 copyBtn.addEventListener("click", copyOutput);
 downloadBtn.addEventListener("click", downloadOutput);
 clearBtn.addEventListener("click", clearEditors);
 loadExampleBtn.addEventListener("click", loadExampleRule);
 indentSize.addEventListener("change", runFormatter);
+themeMode.addEventListener("change", applyTheme);
 compactBlankLines.addEventListener("change", runFormatter);
 
 input.addEventListener("keydown", (event) => {

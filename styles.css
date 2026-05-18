@@ -20,6 +20,24 @@
   --syntax-comment: #94a3b8;
 }
 
+body.dark-mode {
+  color-scheme: dark;
+  --bg: #0b1220;
+  --panel: #121a2b;
+  --text: #edf4ff;
+  --muted: #a8b6ca;
+  --border: #26364d;
+  --accent: #2aa889;
+  --accent-strong: #1d8068;
+  --code-bg: #071b34;
+  --code-text: #f2f7ff;
+  --syntax-keyword: #93c5fd;
+  --syntax-section: #fde68a;
+  --syntax-string: #86efac;
+  --syntax-variable: #f0abfc;
+  --syntax-comment: #9fb3cc;
+}
+
 * {
   box-sizing: border-box;
 }
@@ -141,6 +159,11 @@ button.secondary {
 
 button.secondary:hover {
   background: #edf2f6;
+}
+
+body.dark-mode button.secondary:hover,
+body.dark-mode .github-link:hover {
+  background: #1b2940;
 }
 
 select {
