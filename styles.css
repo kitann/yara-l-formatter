@@ -571,6 +571,10 @@ pre {
   background: var(--panel);
 }
 
+body.dark-mode .options .github-link:hover {
+  background: #1b2940;
+}
+
 .options label {
   display: flex;
   align-items: center;
