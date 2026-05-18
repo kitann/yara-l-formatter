@@ -17,6 +17,13 @@
           <p>Paste a YARA-L rule, format it, then copy or download the cleaned version.</p>
         </div>
         <div class="actions">
+          <label class="theme-control">
+            <span id="themeModeLabel">Theme</span>
+            <select id="themeMode" aria-labelledby="themeModeLabel" onchange="document.body.classList.toggle('dark-mode', this.value === 'dark'); document.body.dataset.theme = this.value;">
+              <option value="light" selected>Light</option>
+              <option value="dark">Dark</option>
+            </select>
+          </label>
           <a class="coffee-link" href="https://buymeacoffee.com/matchcoffee" target="_blank" rel="noreferrer">
             Buy Me a Coffee
           </a>
@@ -73,13 +80,6 @@
           <select id="indentSize" aria-labelledby="indentSizeLabel">
             <option value="2" selected>2 spaces</option>
             <option value="4">4 spaces</option>
-          </select>
-        </label>
-        <label>
-          <span id="themeModeLabel">Theme</span>
-          <select id="themeMode" aria-labelledby="themeModeLabel">
-            <option value="light" selected>Light</option>
-            <option value="dark">Dark</option>
           </select>
         </label>
         <label class="checkbox">

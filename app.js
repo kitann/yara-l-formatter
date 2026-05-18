@@ -276,8 +276,22 @@ function loadExampleRule() {
 }
 
 function applyTheme() {
+  const isDark = themeMode.value === "dark";
+  document.body.classList.toggle("dark-mode", isDark);
+  document.body.dataset.theme = themeMode.value;
+  localStorage.setItem("yaraLFormatterTheme", themeMode.value);
+  showToast(`${isDark ? "Dark" : "Light"} mode selected.`);
+}
+
+function initializeTheme() {
+  const savedTheme = localStorage.getItem("yaraLFormatterTheme");
+
+  if (savedTheme === "dark" || savedTheme === "light") {
+    themeMode.value = savedTheme;
+  }
+
   document.body.classList.toggle("dark-mode", themeMode.value === "dark");
-  showToast(`${themeMode.value === "dark" ? "Dark" : "Light"} mode selected.`);
+  document.body.dataset.theme = themeMode.value;
 }
 
 formatBtn.addEventListener("click", runFormatter);
@@ -295,4 +309,5 @@ input.addEventListener("keydown", (event) => {
   }
 });
 
+initializeTheme();
 setStatus("Ready.");

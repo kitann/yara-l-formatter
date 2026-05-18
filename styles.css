@@ -22,14 +22,14 @@
 
 body.dark-mode {
   color-scheme: dark;
-  --bg: #0b1220;
+  --bg: #080d18;
   --panel: #121a2b;
   --text: #edf4ff;
   --muted: #a8b6ca;
   --border: #26364d;
   --accent: #2aa889;
   --accent-strong: #1d8068;
-  --code-bg: #071b34;
+  --code-bg: #082a52;
   --code-text: #f2f7ff;
   --syntax-keyword: #93c5fd;
   --syntax-section: #fde68a;
@@ -102,6 +102,25 @@ p {
   align-items: center;
   gap: 10px;
   flex-wrap: wrap;
+}
+
+.theme-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 750;
+}
+
+.theme-control select {
+  min-height: 30px;
+  padding-left: 10px;
 }
 
 button,
@@ -243,6 +262,11 @@ textarea::placeholder {
   flex: 1;
   min-height: 0;
   background: var(--code-bg);
+}
+
+body.dark-mode textarea,
+body.dark-mode .formatted-output {
+  background: #082a52;
 }
 
 pre {
@@ -402,5 +426,9 @@ pre {
   .options select,
   .options button {
     width: 100%;
+  }
+
+  .theme-control {
+    justify-content: space-between;
   }
 }
