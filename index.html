@@ -26,17 +26,24 @@
     <main class="app-shell">
       <section class="toolbar" aria-label="Formatter controls">
         <div class="brand-lockup">
-          <span class="brand-mark" aria-hidden="true">
-            <span class="brand-brace">{</span>
-            <span class="brand-rule-lines">
-              <span></span>
-              <span></span>
-            </span>
-            <span class="brand-brace">}</span>
-          </span>
-          <div>
+          <a class="brand-logo" href="/" aria-label="YARALint home">
+            <svg viewBox="0 0 430 118" role="img" aria-labelledby="brandLogoTitle">
+              <title id="brandLogoTitle">YARALint Rule Brackets logo</title>
+              <g class="rule-mark" transform="translate(12 13)">
+                <text class="rule-brace rule-brace-left" x="0" y="63">{</text>
+                <line class="rule-line rule-line-accent" x1="51" y1="21" x2="83" y2="21"></line>
+                <line class="rule-line" x1="51" y1="39" x2="93" y2="39"></line>
+                <line class="rule-line" x1="51" y1="56" x2="78" y2="56"></line>
+                <circle class="rule-dot" cx="63" cy="84" r="4"></circle>
+                <text class="rule-brace rule-brace-right" x="92" y="63">}</text>
+              </g>
+              <text class="brand-word brand-word-primary" x="155" y="73">Yara</text>
+              <text class="brand-word brand-word-accent" x="288" y="73">Lint</text>
+            </svg>
+          </a>
+          <div class="brand-copy">
             <div class="title-row">
-              <h1 class="wordmark"><span>YARA</span><span>Lint</span></h1>
+              <h1 class="sr-only-heading">YARALint</h1>
               <span class="version">v1.0.5</span>
             </div>
             <p>Paste a YARA-L rule, format it, then copy or download the cleaned version.</p>
