@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>YARA-L Formatter | Format and Clean YARA-L Rules Online</title>
+    <title>YARALint | Format and Clean YARA-L Rules Online</title>
     <meta name="description" content="Format, clean, and preview YARA-L and YARA-style detection rules online with proper indentation, syntax highlighting, examples, and copy/download support.">
     <meta name="keywords" content="YARA-L formatter, YARA formatter, YARA-L rules, cybersecurity tools, detection engineering, Chronicle YARA-L, SIEM rules, security rule formatter">
     <meta name="author" content="Saheed Adeoye">
@@ -11,11 +11,11 @@
     <link rel="canonical" href="https://yaralint.com/">
     <meta name="theme-color" content="#f5f7f9" media="(prefers-color-scheme: light)">
     <meta name="theme-color" content="#080d18" media="(prefers-color-scheme: dark)">
-    <meta property="og:title" content="YARA-L Formatter">
+    <meta property="og:title" content="YARALint">
     <meta property="og:description" content="A lightweight online formatter for YARA-L rules with clean indentation, syntax highlighting, examples, and copy/download support.">
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://yaralint.com/">
-    <meta property="og:site_name" content="YARA-L Formatter">
+    <meta property="og:site_name" content="YARALint">
     <meta property="og:image" content="https://yaralint.com/favicon-32x32.png">
     <link rel="icon" type="image/x-icon" href="favicon.ico?v=2026-05-17-2119">
     <link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png?v=2026-05-17-2119">
@@ -25,12 +25,22 @@
   <body>
     <main class="app-shell">
       <section class="toolbar" aria-label="Formatter controls">
-        <div>
-          <div class="title-row">
-            <h1>YARA-L Formatter</h1>
-            <span class="version">v1.0.4</span>
+        <div class="brand-lockup">
+          <span class="brand-mark" aria-hidden="true">
+            <span class="brand-brace">{</span>
+            <span class="brand-rule-lines">
+              <span></span>
+              <span></span>
+            </span>
+            <span class="brand-brace">}</span>
+          </span>
+          <div>
+            <div class="title-row">
+              <h1 class="wordmark"><span>YARA</span><span>Lint</span></h1>
+              <span class="version">v1.0.5</span>
+            </div>
+            <p>Paste a YARA-L rule, format it, then copy or download the cleaned version.</p>
           </div>
-          <p>Paste a YARA-L rule, format it, then copy or download the cleaned version.</p>
         </div>
         <div class="actions">
           <label class="theme-control">
