@@ -24,8 +24,8 @@ const versionBadge = document.querySelector("[data-version-badge]");
 const toast = document.querySelector("#toast");
 
 const appConfig = window.YARALINT_CONFIG || {
-  version: "1.0.7",
-  build: "2026-05-18T16:59:05-05:00"
+  version: "1.0.8",
+  build: "2026-05-19T17:15:35-05:00"
 };
 const sectionPattern = /^(meta|strings|events|match|outcome|condition|options):$/i;
 const githubRawBase = "https://raw.githubusercontent.com/Neo23x0/signature-base/master/yara/";
@@ -621,6 +621,10 @@ const yaraLintEngine = (() => {
           const lineNumber = index + 1;
           const section = state.context.sectionsByLine.get(lineNumber);
           const trimmed = line.trim();
+
+          if (/^rule\s+[A-Za-z_][\w]*\b/.test(trimmed)) {
+            seen.clear();
+          }
 
           if (section !== "strings" || !trimmed || trimmed.startsWith("#") || trimmed.startsWith("}") || getSectionName(line)) {
             return;
