@@ -24,8 +24,8 @@ const versionBadge = document.querySelector("[data-version-badge]");
 const toast = document.querySelector("#toast");
 
 const appConfig = window.YARALINT_CONFIG || {
-  version: "1.0.8",
-  build: "2026-05-19T17:15:35-05:00"
+  version: "1.0.9",
+  build: "2026-05-19T17:34:33-05:00"
 };
 const sectionPattern = /^(meta|strings|events|match|outcome|condition|options):$/i;
 const githubRawBase = "https://raw.githubusercontent.com/Neo23x0/signature-base/master/yara/";
@@ -380,6 +380,7 @@ const yaraLintEngine = (() => {
 
     for (let index = 0; index < line.length; index += 1) {
       const char = line[index];
+      const nextChar = line[index + 1];
 
       if (escaped) {
         escaped = false;
@@ -404,9 +405,72 @@ const yaraLintEngine = (() => {
       if (quote === null && char === "#") {
         return line.slice(0, index);
       }
+
+      if (quote === null && char === "/" && nextChar === "/") {
+        return line.slice(0, index);
+      }
     }
 
     return line;
+  }
+
+  function buildBlockCommentLines(lines) {
+    const commentLines = new Set();
+    let inBlockComment = false;
+
+    lines.forEach((line, index) => {
+      let quote = null;
+      let escaped = false;
+      let lineHasBlockComment = inBlockComment;
+
+      for (let offset = 0; offset < line.length; offset += 1) {
+        const char = line[offset];
+        const nextChar = line[offset + 1];
+
+        if (escaped) {
+          escaped = false;
+          continue;
+        }
+
+        if (char === "\\") {
+          escaped = true;
+          continue;
+        }
+
+        if ((char === '"' || char === "'") && quote === null) {
+          quote = char;
+          continue;
+        }
+
+        if (char === quote) {
+          quote = null;
+          continue;
+        }
+
+        if (quote !== null) {
+          continue;
+        }
+
+        if (!inBlockComment && char === "/" && nextChar === "*") {
+          inBlockComment = true;
+          lineHasBlockComment = true;
+          offset += 1;
+          continue;
+        }
+
+        if (inBlockComment && char === "*" && nextChar === "/") {
+          inBlockComment = false;
+          lineHasBlockComment = true;
+          offset += 1;
+        }
+      }
+
+      if (lineHasBlockComment) {
+        commentLines.add(index + 1);
+      }
+    });
+
+    return commentLines;
   }
 
   function getSectionName(line) {
@@ -626,7 +690,7 @@ const yaraLintEngine = (() => {
             seen.clear();
           }
 
-          if (section !== "strings" || !trimmed || trimmed.startsWith("#") || trimmed.startsWith("}") || getSectionName(line)) {
+          if (section !== "strings" || state.blockCommentLines.has(lineNumber) || !trimmed || trimmed.startsWith("#") || trimmed.startsWith("}") || getSectionName(line)) {
             return;
           }
 
@@ -923,6 +987,7 @@ const yaraLintEngine = (() => {
     const state = {
       lines,
       context: buildContext(lines),
+      blockCommentLines: buildBlockCommentLines(lines),
       issues: [],
       fixedLines: new Set(fixedLines),
       allowFixes
