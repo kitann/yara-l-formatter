@@ -24,8 +24,8 @@ const versionBadge = document.querySelector("[data-version-badge]");
 const toast = document.querySelector("#toast");
 
 const appConfig = window.YARALINT_CONFIG || {
-  version: "1.0.9",
-  build: "2026-05-19T17:34:33-05:00"
+  version: "1.0.10",
+  build: "2026-05-19T17:50:34-05:00"
 };
 const sectionPattern = /^(meta|strings|events|match|outcome|condition|options):$/i;
 const githubRawBase = "https://raw.githubusercontent.com/Neo23x0/signature-base/master/yara/";
@@ -139,7 +139,7 @@ function highlightYaraL(source, fixedLines = new Set()) {
   return source.split("\n").map((line, index) => {
     const lineNumber = index + 1;
     const className = fixedLines.has(lineNumber) ? "code-line fixed-line" : "code-line";
-    return `<span class="${className}" data-line="${lineNumber}">${highlightLine(line) || " "}</span>`;
+    return `<span class="${className}" data-line="${lineNumber}"><span class="line-number" aria-hidden="true">${String(lineNumber).padStart(3, " ")}</span><span class="line-source">${highlightLine(line) || " "}</span></span>`;
   }).join("");
 }
 
@@ -624,6 +624,13 @@ const yaraLintEngine = (() => {
     });
   }
 
+  function stripLeadingModifierComma(modifiers) {
+    const corrected = modifiers.replace(/^,\s*/, "");
+    return corrected !== modifiers && validateModifiers(corrected).length === 0
+      ? corrected
+      : null;
+  }
+
   function validateHexString(hexValue) {
     if (!hexValue.startsWith("{") || !hexValue.endsWith("}")) {
       return ["Hex string must start with { and end with }."];
@@ -773,6 +780,23 @@ const yaraLintEngine = (() => {
               }));
               return;
             }
+          }
+
+          const correctedModifiers = stripLeadingModifierComma(parsed.modifiers);
+          if (correctedModifiers !== null && state.allowFixes) {
+            parsed = { ...parsed, modifiers: correctedModifiers };
+            const corrected = rebuildStringDeclaration(parsed, parsed.value);
+            state.lines[index] = corrected;
+            state.fixedLines.add(lineNumber);
+            state.issues.push(makeIssue({
+              severity: "FIXED",
+              line: lineNumber,
+              message: "Removed stray comma before string modifiers.",
+              original: currentLine,
+              corrected,
+              fixed: true
+            }));
+            currentLine = corrected;
           }
 
           if (parsed.kind === "bare" && state.allowFixes && shouldAutoQuoteBareString(parsed.value)) {
@@ -953,6 +977,34 @@ const yaraLintEngine = (() => {
           const parsed = parseMetaAssignment(line);
 
           if (!parsed || parsed.kind !== "singleText" || !parsed.validValueBoundary) {
+            if (parsed && !parsed.validValueBoundary && (parsed.kind === "text" || parsed.kind === "singleText")) {
+              if (!state.allowFixes) {
+                state.issues.push(makeIssue({
+                  severity: "ERROR",
+                  line: lineNumber,
+                  message: "Unterminated meta string value.",
+                  original: line,
+                  recommendation: "Close the meta string value with a matching quote."
+                }));
+                return;
+              }
+
+              const correctedValue = parsed.kind === "text"
+                ? `${parsed.value}"`
+                : quoteYaraText(parsed.value.slice(1));
+              const corrected = rebuildMetaAssignment(parsed, correctedValue);
+              state.lines[index] = corrected;
+              state.fixedLines.add(lineNumber);
+              state.issues.push(makeIssue({
+                severity: "FIXED",
+                line: lineNumber,
+                message: "Added missing closing quote to meta assignment.",
+                original: line,
+                corrected,
+                fixed: true
+              }));
+            }
+
             return;
           }
 
@@ -1067,7 +1119,7 @@ function renderLintResults(result = null) {
   const fixedCount = issues.filter((issue) => issue.fixed).length;
   const errorCount = issues.filter((issue) => issue.severity === "ERROR").length;
 
-  lintResultCount.textContent = `${issues.length} finding${issues.length === 1 ? "" : "s"} | ${fixedCount} fixed | ${errorCount} error${errorCount === 1 ? "" : "s"}`;
+  lintResultCount.textContent = `Total errors found: ${issues.length} | Fixed: ${fixedCount} | Manual review: ${errorCount}`;
   lintResultsPanel.open = issues.length > 0;
 
   if (issues.length === 0) {
