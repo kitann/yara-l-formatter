@@ -24,8 +24,8 @@ const versionBadge = document.querySelector("[data-version-badge]");
 const toast = document.querySelector("#toast");
 
 const appConfig = window.YARALINT_CONFIG || {
-  version: "1.0.12",
-  build: "2026-05-20T21:48:34-05:00"
+  version: "1.1.0",
+  build: "2026-05-20T21:54:06-05:00"
 };
 const sectionPattern = /^(meta|strings|events|match|outcome|condition|options):$/i;
 const githubRawBase = "https://raw.githubusercontent.com/Neo23x0/signature-base/master/yara/";
@@ -566,6 +566,11 @@ const yaraLintEngine = (() => {
     return match ? match[1].toLowerCase() : null;
   }
 
+  function getRuleDeclarationName(line) {
+    const match = line.trim().match(/^(?:(?:private|global)\s+)*rule\s+([A-Za-z_][\w]*)\b/);
+    return match ? match[1] : null;
+  }
+
   function buildContext(lines) {
     const sectionsByLine = new Map();
     let currentSection = null;
@@ -861,31 +866,31 @@ const yaraLintEngine = (() => {
         state.lines.forEach((line, index) => {
           const commentInfo = getCodeOutsideComments(line, insideBlockComment);
           insideBlockComment = commentInfo.insideBlockComment;
-          const match = commentInfo.code.trim().match(/^rule\s+([A-Za-z_][\w]*)\b/);
+          const ruleName = getRuleDeclarationName(commentInfo.code);
 
-          if (!match) {
+          if (!ruleName) {
             return;
           }
 
-          if (seen.has(match[1])) {
+          if (seen.has(ruleName)) {
             state.issues.push(makeIssue({
               severity: "ERROR",
               line: index + 1,
-              message: `Duplicate rule identifier: ${match[1]}.`,
+              message: `Duplicate rule identifier: ${ruleName}.`,
               original: line,
               recommendation: "Rename one of the rules so every rule identifier is unique."
             }));
             return;
           }
 
-          seen.set(match[1], index + 1);
+          seen.set(ruleName, index + 1);
         });
       }
     },
     {
       id: "string-declarations",
       validate(state) {
-        const seen = new Map();
+        let seen = new Map();
         let insideBlockComment = false;
 
         for (let index = 0; index < state.lines.length; index += 1) {
@@ -896,6 +901,11 @@ const yaraLintEngine = (() => {
           const section = state.context.sectionsByLine.get(lineNumber);
           const activeLine = commentInfo.code;
           const trimmed = activeLine.trim();
+          const ruleName = getRuleDeclarationName(activeLine);
+
+          if (ruleName) {
+            seen = new Map();
+          }
 
           if (section !== "strings" || !trimmed || trimmed.startsWith("}") || getSectionName(activeLine)) {
             continue;
