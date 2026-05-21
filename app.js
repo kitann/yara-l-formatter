@@ -32,8 +32,8 @@ const versionBadge = document.querySelector("[data-version-badge]");
 const toast = document.querySelector("#toast");
 
 const appConfig = window.YARALINT_CONFIG || {
-  version: "1.1.6",
-  build: "2026-05-21T10:49:27-05:00"
+  version: "1.1.7",
+  build: "2026-05-21T11:41:35-05:00"
 };
 const sectionPattern = /^(meta|strings|events|match|outcome|condition|options):$/i;
 const githubRawBase = "https://raw.githubusercontent.com/Neo23x0/signature-base/master/yara/";
@@ -918,6 +918,53 @@ const yaraLintEngine = (() => {
     }).map((token) => `Invalid hex token: ${token}`);
   }
 
+  function getUnclosedQuote(line) {
+    let quote = null;
+    let escaped = false;
+
+    for (const char of line) {
+      if (escaped) {
+        escaped = false;
+        continue;
+      }
+
+      if (char === "\\") {
+        escaped = true;
+        continue;
+      }
+
+      if ((char === '"' || char === "'") && quote === null) {
+        quote = char;
+        continue;
+      }
+
+      if (char === quote) {
+        quote = null;
+      }
+    }
+
+    return quote;
+  }
+
+  function insertBeforeTrailingWhitespace(line, text) {
+    const match = line.match(/\s*$/);
+    const insertIndex = match ? line.length - match[0].length : line.length;
+    return `${line.slice(0, insertIndex)}${text}${line.slice(insertIndex)}`;
+  }
+
+  function parseOutcomeAssignment(line) {
+    const match = line.match(/^(\s*\$[A-Za-z_][\w.]*)\s*=\s*(.*)$/);
+
+    if (!match || !match[2].trim()) {
+      return null;
+    }
+
+    return {
+      id: match[1].trim(),
+      value: match[2]
+    };
+  }
+
   const validators = [
     {
       id: "duplicate-rule-identifiers",
@@ -1172,6 +1219,93 @@ const yaraLintEngine = (() => {
             ? "Add a condition block, for example: condition: any of them."
             : "Add a condition block that expresses the rule logic."
         }));
+      }
+    },
+    {
+      id: "outcome-assignment-syntax",
+      validate(state) {
+        let insideBlockComment = false;
+
+        state.lines.forEach((line, index) => {
+          const lineNumber = index + 1;
+          const commentInfo = getCodeOutsideComments(line, insideBlockComment);
+          insideBlockComment = commentInfo.insideBlockComment;
+          const section = state.context.sectionsByLine.get(lineNumber);
+          const activeLine = commentInfo.code;
+          const trimmed = activeLine.trim();
+
+          if (section !== "outcome" || !trimmed || trimmed.startsWith("}") || getSectionName(activeLine)) {
+            return;
+          }
+
+          const assignment = parseOutcomeAssignment(activeLine);
+
+          if (!assignment) {
+            return;
+          }
+
+          let corrected = activeLine;
+          let changed = false;
+          const original = state.lines[index];
+          const unclosedQuote = getUnclosedQuote(corrected);
+
+          if (unclosedQuote) {
+            if (!state.allowFixes) {
+              state.issues.push(makeIssue({
+                severity: "ERROR",
+                line: lineNumber,
+                message: "Unterminated quote in outcome assignment.",
+                original,
+                recommendation: "Close the quoted outcome value before deploying the rule."
+              }));
+              return;
+            }
+
+            corrected = insertBeforeTrailingWhitespace(corrected, unclosedQuote);
+            changed = true;
+            state.issues.push(makeIssue({
+              severity: "FIXED",
+              line: lineNumber,
+              message: "Added missing closing quote to outcome assignment.",
+              original,
+              corrected,
+              fixed: true
+            }));
+          }
+
+          const opens = countOutsideQuotes(corrected, "(");
+          const closes = countOutsideQuotes(corrected, ")");
+          const missingParens = opens - closes;
+
+          if (missingParens > 0 && !/\b(and|or)\s*$/i.test(corrected.trim())) {
+            if (!state.allowFixes) {
+              state.issues.push(makeIssue({
+                severity: "ERROR",
+                line: lineNumber,
+                message: "Unbalanced parentheses in outcome assignment.",
+                original: changed ? corrected : original,
+                recommendation: "Close the outcome function call before deploying the rule."
+              }));
+              return;
+            }
+
+            corrected = insertBeforeTrailingWhitespace(corrected, ")".repeat(missingParens));
+            changed = true;
+            state.issues.push(makeIssue({
+              severity: "FIXED",
+              line: lineNumber,
+              message: `Added ${missingParens} missing closing parenthesis${missingParens === 1 ? "" : "es"} to outcome assignment.`,
+              original,
+              corrected,
+              fixed: true
+            }));
+          }
+
+          if (changed) {
+            state.lines[index] = corrected;
+            state.fixedLines.add(lineNumber);
+          }
+        });
       }
     },
     {
