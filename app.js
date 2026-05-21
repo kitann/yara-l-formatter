@@ -24,8 +24,8 @@ const versionBadge = document.querySelector("[data-version-badge]");
 const toast = document.querySelector("#toast");
 
 const appConfig = window.YARALINT_CONFIG || {
-  version: "1.0.9",
-  build: "2026-05-20T21:25:52-05:00"
+  version: "1.0.12",
+  build: "2026-05-20T21:48:34-05:00"
 };
 const sectionPattern = /^(meta|strings|events|match|outcome|condition|options):$/i;
 const githubRawBase = "https://raw.githubusercontent.com/Neo23x0/signature-base/master/yara/";
@@ -119,6 +119,111 @@ function countLeadingClosingBraces(line) {
   return match ? match[0].length : 0;
 }
 
+function splitCommentSegments(line, startsInsideBlockComment = false) {
+  const segments = [];
+  let buffer = "";
+  let quote = null;
+  let escaped = false;
+  let insideBlockComment = startsInsideBlockComment;
+
+  function pushSegment(type) {
+    if (!buffer) {
+      return;
+    }
+
+    const previous = segments[segments.length - 1];
+
+    if (previous && previous.type === type) {
+      previous.text += buffer;
+    } else {
+      segments.push({ type, text: buffer });
+    }
+
+    buffer = "";
+  }
+
+  for (let index = 0; index < line.length; index += 1) {
+    const char = line[index];
+    const next = line[index + 1];
+
+    if (insideBlockComment) {
+      buffer += char;
+
+      if (char === "*" && next === "/") {
+        buffer += next;
+        index += 1;
+        pushSegment("comment");
+        insideBlockComment = false;
+      }
+
+      continue;
+    }
+
+    if (escaped) {
+      buffer += char;
+      escaped = false;
+      continue;
+    }
+
+    if (char === "\\") {
+      buffer += char;
+      escaped = true;
+      continue;
+    }
+
+    if ((char === '"' || char === "'") && quote === null) {
+      quote = char;
+      buffer += char;
+      continue;
+    }
+
+    if (char === quote) {
+      quote = null;
+      buffer += char;
+      continue;
+    }
+
+    if (quote === null && char === "/" && next === "*") {
+      pushSegment("code");
+      buffer = "/*";
+      index += 1;
+      insideBlockComment = true;
+      continue;
+    }
+
+    if (quote === null && char === "#") {
+      pushSegment("code");
+      buffer = line.slice(index);
+      pushSegment("comment");
+      return { segments, insideBlockComment: false };
+    }
+
+    if (quote === null && char === "/" && next === "/" && (index === 0 || /\s/.test(line[index - 1]))) {
+      pushSegment("code");
+      buffer = line.slice(index);
+      pushSegment("comment");
+      return { segments, insideBlockComment: false };
+    }
+
+    buffer += char;
+  }
+
+  pushSegment(insideBlockComment ? "comment" : "code");
+  return { segments, insideBlockComment };
+}
+
+function getCodeOutsideComments(line, startsInsideBlockComment = false) {
+  const result = splitCommentSegments(line, startsInsideBlockComment);
+  return {
+    code: result.segments
+      .filter((segment) => segment.type === "code")
+      .map((segment) => segment.text)
+      .join(""),
+    insideBlockComment: result.insideBlockComment,
+    hasComment: result.segments.some((segment) => segment.type === "comment")
+  };
+}
+
 function escapeHtml(value) {
   return value
     .replace(/&/g, "&amp;")
@@ -126,20 +231,34 @@ function escapeHtml(value) {
     .replace(/>/g, "&gt;");
 }
 
-function highlightLine(line) {
+function highlightCodeSegment(line) {
   return escapeHtml(line)
-    .replace(/(#.*)$/gm, '<span class="token-comment">$1</span>')
     .replace(/("(?:\\.|[^"\\])*")/g, '<span class="token-string">$1</span>')
     .replace(/(^|\s)(\$[A-Za-z_][\w.]*)/g, '$1<span class="token-variable">$2</span>')
     .replace(/\b(rule|and|or|not|nocase|re|regex|any|all|of|them|in|over|match|outcome|condition|events|strings|meta|options)\b/g, '<span class="token-keyword">$1</span>')
     .replace(/(^\s*)(meta|strings|events|match|outcome|condition|options):/gim, '$1<span class="token-section">$2:</span>');
 }
 
+function highlightLine(line, commentState) {
+  const result = splitCommentSegments(line, commentState.insideBlockComment);
+  commentState.insideBlockComment = result.insideBlockComment;
+
+  return result.segments.map((segment) => {
+    if (segment.type === "comment") {
+      return `<span class="token-comment">${escapeHtml(segment.text)}</span>`;
+    }
+
+    return highlightCodeSegment(segment.text);
+  }).join("");
+}
+
 function highlightYaraL(source, fixedLines = new Set()) {
+  const commentState = { insideBlockComment: false };
+
   return source.split("\n").map((line, index) => {
     const lineNumber = index + 1;
     const className = fixedLines.has(lineNumber) ? "code-line fixed-line" : "code-line";
-    return `<span class="${className}" data-line="${lineNumber}">${highlightLine(line) || " "}</span>`;
+    return `<span class="${className}" data-line="${lineNumber}">${highlightLine(line, commentState) || " "}</span>`;
   }).join("");
 }
 
@@ -153,6 +272,18 @@ function isHexStringStart(line) {
   return /^\$[A-Za-z_][\w]*\s*=\s*\{/.test(line);
 }
 
+function normalizeAssignmentSpacing(line, section) {
+  if (section === "strings") {
+    return line.replace(/^(\$[A-Za-z_][\w]*)\s*=\s*/, "$1 = ");
+  }
+
+  if (section === "meta") {
+    return line.replace(/^([A-Za-z_][\w]*)\s*=\s*/, "$1 = ");
+  }
+
+  return line;
+}
+
 function formatYaraL(source, options) {
   const indentUnit = " ".repeat(options.indentSize);
   const lines = source.replace(/\r\n?/g, "\n").split("\n");
@@ -162,31 +293,43 @@ function formatYaraL(source, options) {
   let sectionIndentLevel = null;
   let currentSection = null;
   let hexBlockBalance = 0;
+  let insideBlockComment = false;
   let previousWasBlank = false;
 
   lines.forEach((rawLine, index) => {
     const trimmed = rawLine.trim();
+    const commentInfo = getCodeOutsideComments(rawLine, insideBlockComment);
+    const activeTrimmed = commentInfo.code.trim();
+    const commentOnly = trimmed !== "" && commentInfo.hasComment && !activeTrimmed;
 
     if (trimmed === "") {
       if (!options.compactBlankLines || !previousWasBlank) {
         formatted.push("");
       }
       previousWasBlank = true;
+      insideBlockComment = commentInfo.insideBlockComment;
       return;
     }
 
     previousWasBlank = false;
 
+    if (commentOnly) {
+      formatted.push(rawLine.replace(/\s+$/g, ""));
+      insideBlockComment = commentInfo.insideBlockComment;
+      return;
+    }
+
     const insideHexBlock = currentSection === "strings" && hexBlockBalance > 0;
+    let activeLine = insideHexBlock ? commentInfo.code.replace(/\s+$/g, "") : normalizeOperators(activeTrimmed);
     let line = insideHexBlock ? rawLine.replace(/\s+$/g, "") : normalizeOperators(trimmed);
-    const startsHexBlock = currentSection === "strings" && isHexStringStart(line);
+    const startsHexBlock = currentSection === "strings" && isHexStringStart(activeLine);
     const isHexBlockLine = insideHexBlock || startsHexBlock;
     const hexDelta = isHexBlockLine
-      ? countOutsideQuotes(line, "{") - countOutsideQuotes(line, "}")
+      ? countOutsideQuotes(activeLine, "{") - countOutsideQuotes(activeLine, "}")
       : 0;
-    const closes = isHexBlockLine ? 0 : countOutsideQuotes(line, "}");
-    const opens = isHexBlockLine ? 0 : countOutsideQuotes(line, "{");
-    const leadingCloses = isHexBlockLine ? 0 : countLeadingClosingBraces(line);
+    const closes = isHexBlockLine ? 0 : countOutsideQuotes(activeLine, "}");
+    const opens = isHexBlockLine ? 0 : countOutsideQuotes(activeLine, "{");
+    const leadingCloses = isHexBlockLine ? 0 : countLeadingClosingBraces(activeLine);
 
     if (leadingCloses > 0) {
       indentLevel = Math.max(indentLevel - leadingCloses, 0);
@@ -196,14 +339,19 @@ function formatYaraL(source, options) {
       currentSection = null;
     }
 
+    if (!insideHexBlock && (currentSection === "meta" || currentSection === "strings") && !sectionPattern.test(activeLine) && !activeLine.startsWith("}")) {
+      activeLine = normalizeAssignmentSpacing(activeLine, currentSection);
+      line = normalizeAssignmentSpacing(line, currentSection);
+    }
+
     if (insideHexBlock) {
       formatted.push(line);
-    } else if (sectionPattern.test(line)) {
+    } else if (sectionPattern.test(activeLine)) {
       formatted.push(`${indentUnit.repeat(indentLevel)}${line}`);
       sectionIndentLevel = indentLevel;
-      currentSection = line.slice(0, -1).toLowerCase();
+      currentSection = activeLine.slice(0, -1).toLowerCase();
     } else {
-      const bodyIndent = sectionIndentLevel !== null && !line.startsWith("}")
+      const bodyIndent = sectionIndentLevel !== null && !activeLine.startsWith("}")
         ? sectionIndentLevel + 1 + Math.max(indentLevel - sectionIndentLevel, 0)
         : indentLevel;
       formatted.push(`${indentUnit.repeat(bodyIndent)}${line}`);
@@ -219,6 +367,8 @@ function formatYaraL(source, options) {
     if (isHexBlockLine) {
       hexBlockBalance = Math.max(hexBlockBalance + hexDelta, 0);
     }
+
+    insideBlockComment = commentInfo.insideBlockComment;
   });
 
   if (indentLevel > 0) {
@@ -298,14 +448,18 @@ const yaraLintEngine = (() => {
   }
 
   function hasUnclosedHexValue(lines, context = buildContext(lines)) {
+    let insideBlockComment = false;
+
     for (let index = 0; index < lines.length; index += 1) {
       const lineNumber = index + 1;
+      const commentInfo = getCodeOutsideComments(lines[index], insideBlockComment);
+      insideBlockComment = commentInfo.insideBlockComment;
 
       if (context.sectionsByLine.get(lineNumber) !== "strings") {
         continue;
       }
 
-      const parsed = parseStringDeclaration(lines[index]);
+      const parsed = parseStringDeclaration(commentInfo.code);
 
       if (!parsed || parsed.kind !== "hex") {
         continue;
@@ -366,15 +520,18 @@ const yaraLintEngine = (() => {
 
   function getStringIdentifiers(lines, context) {
     const identifiers = [];
+    let insideBlockComment = false;
 
     lines.forEach((line, index) => {
       const lineNumber = index + 1;
+      const commentInfo = getCodeOutsideComments(line, insideBlockComment);
+      insideBlockComment = commentInfo.insideBlockComment;
 
       if (context.sectionsByLine.get(lineNumber) !== "strings") {
         return;
       }
 
-      const parsed = parseStringDeclaration(line);
+      const parsed = parseStringDeclaration(commentInfo.code);
 
       if (parsed) {
         identifiers.push(parsed.id);
@@ -401,42 +558,7 @@ const yaraLintEngine = (() => {
   }
 
   function lineWithoutComment(line) {
-    let quote = null;
-    let escaped = false;
-
-    for (let index = 0; index < line.length; index += 1) {
-      const char = line[index];
-
-      if (escaped) {
-        escaped = false;
-        continue;
-      }
-
-      if (char === "\\") {
-        escaped = true;
-        continue;
-      }
-
-      if ((char === '"' || char === "'") && quote === null) {
-        quote = char;
-        continue;
-      }
-
-      if (char === quote) {
-        quote = null;
-        continue;
-      }
-
-      if (quote === null && char === "#") {
-        return line.slice(0, index);
-      }
-
-      if (quote === null && char === "/" && line[index + 1] === "/" && (index === 0 || /\s/.test(line[index - 1]))) {
-        return line.slice(0, index);
-      }
-    }
-
-    return line;
+    return getCodeOutsideComments(line).code;
   }
 
   function getSectionName(line) {
@@ -447,9 +569,12 @@ const yaraLintEngine = (() => {
   function buildContext(lines) {
     const sectionsByLine = new Map();
     let currentSection = null;
+    let insideBlockComment = false;
 
     lines.forEach((line, index) => {
-      const sectionName = getSectionName(line);
+      const commentInfo = getCodeOutsideComments(line, insideBlockComment);
+      const sectionName = getSectionName(commentInfo.code);
+      insideBlockComment = commentInfo.insideBlockComment;
 
       if (sectionName) {
         currentSection = sectionName;
@@ -598,11 +723,14 @@ const yaraLintEngine = (() => {
     const parts = [];
     let balance = 0;
     let sawOpeningBrace = false;
+    let insideBlockComment = false;
 
     for (let index = startIndex; index < lines.length; index += 1) {
       const lineNumber = index + 1;
+      const commentInfo = getCodeOutsideComments(lines[index], insideBlockComment);
+      insideBlockComment = commentInfo.insideBlockComment;
       const section = context.sectionsByLine.get(lineNumber);
-      const sectionName = getSectionName(lines[index]);
+      const sectionName = getSectionName(commentInfo.code);
 
       if (index > startIndex && sectionName) {
         return {
@@ -624,7 +752,7 @@ const yaraLintEngine = (() => {
 
       const fragment = index === startIndex
         ? parsed.rawValue.trim()
-        : lineWithoutComment(lines[index]).trim();
+        : commentInfo.code.trim();
       let closingIndex = -1;
 
       for (let charIndex = 0; charIndex < fragment.length; charIndex += 1) {
@@ -669,15 +797,18 @@ const yaraLintEngine = (() => {
 
   function getHexBlockLineNumbers(lines, context) {
     const lineNumbers = new Set();
+    let insideBlockComment = false;
 
     for (let index = 0; index < lines.length; index += 1) {
       const lineNumber = index + 1;
+      const commentInfo = getCodeOutsideComments(lines[index], insideBlockComment);
+      insideBlockComment = commentInfo.insideBlockComment;
 
       if (context.sectionsByLine.get(lineNumber) !== "strings") {
         continue;
       }
 
-      const parsed = parseStringDeclaration(lines[index]);
+      const parsed = parseStringDeclaration(commentInfo.code);
 
       if (!parsed || parsed.kind !== "hex") {
         continue;
@@ -725,9 +856,12 @@ const yaraLintEngine = (() => {
       id: "duplicate-rule-identifiers",
       validate(state) {
         const seen = new Map();
+        let insideBlockComment = false;
 
         state.lines.forEach((line, index) => {
-          const match = line.trim().match(/^rule\s+([A-Za-z_][\w]*)\b/);
+          const commentInfo = getCodeOutsideComments(line, insideBlockComment);
+          insideBlockComment = commentInfo.insideBlockComment;
+          const match = commentInfo.code.trim().match(/^rule\s+([A-Za-z_][\w]*)\b/);
 
           if (!match) {
             return;
@@ -752,19 +886,23 @@ const yaraLintEngine = (() => {
       id: "string-declarations",
       validate(state) {
         const seen = new Map();
+        let insideBlockComment = false;
 
         for (let index = 0; index < state.lines.length; index += 1) {
           const line = state.lines[index];
           const lineNumber = index + 1;
+          const commentInfo = getCodeOutsideComments(line, insideBlockComment);
+          insideBlockComment = commentInfo.insideBlockComment;
           const section = state.context.sectionsByLine.get(lineNumber);
-          const trimmed = line.trim();
+          const activeLine = commentInfo.code;
+          const trimmed = activeLine.trim();
 
-          if (section !== "strings" || !trimmed || trimmed.startsWith("#") || trimmed.startsWith("//") || trimmed.startsWith("}") || getSectionName(line)) {
+          if (section !== "strings" || !trimmed || trimmed.startsWith("}") || getSectionName(activeLine)) {
             continue;
           }
 
           let currentLine = state.lines[index];
-          let parsed = parseStringDeclaration(currentLine);
+          let parsed = parseStringDeclaration(activeLine);
 
           if (!parsed) {
             state.issues.push(makeIssue({
@@ -923,7 +1061,7 @@ const yaraLintEngine = (() => {
     {
       id: "required-condition",
       validate(state) {
-        if (state.lines.some((line) => /^condition:$/i.test(line.trim()))) {
+        if ([...state.context.sectionsByLine.values()].includes("condition")) {
           return;
         }
 
@@ -970,14 +1108,19 @@ const yaraLintEngine = (() => {
         let balance = 0;
         const hexBlockLines = getHexBlockLineNumbers(state.lines, state.context);
         const hasOpenHexBlock = hasUnclosedHexValue(state.lines, state.context);
+        let insideBlockComment = false;
 
         state.lines.forEach((line, index) => {
+          const commentInfo = getCodeOutsideComments(line, insideBlockComment);
+          insideBlockComment = commentInfo.insideBlockComment;
+          const activeLine = commentInfo.code;
+
           if (hexBlockLines.has(index + 1)) {
             return;
           }
 
-          const opens = countOutsideQuotes(line, "{");
-          const closes = countOutsideQuotes(line, "}");
+          const opens = countOutsideQuotes(activeLine, "{");
+          const closes = countOutsideQuotes(activeLine, "}");
           balance += opens - closes;
 
           if (balance < 0) {
@@ -1025,15 +1168,20 @@ const yaraLintEngine = (() => {
     {
       id: "meta-quote-normalization",
       validate(state) {
+        let insideBlockComment = false;
+
         state.lines.forEach((line, index) => {
           const lineNumber = index + 1;
+          const commentInfo = getCodeOutsideComments(line, insideBlockComment);
+          insideBlockComment = commentInfo.insideBlockComment;
+          const activeLine = commentInfo.code;
           const section = state.context.sectionsByLine.get(lineNumber);
 
-          if (section !== "meta" || line.trim().startsWith("}") || getSectionName(line)) {
+          if (section !== "meta" || !activeLine.trim() || activeLine.trim().startsWith("}") || getSectionName(activeLine)) {
             return;
           }
 
-          const parsed = parseMetaAssignment(line);
+          const parsed = parseMetaAssignment(activeLine);
 
           if (!parsed || parsed.kind !== "singleText" || !parsed.validValueBoundary) {
             return;

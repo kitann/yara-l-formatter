@@ -597,6 +597,18 @@ pre {
   border-left: 3px solid transparent;
 }
 
+.code-line::before {
+  content: attr(data-line);
+  display: inline-block;
+  width: 5ch;
+  margin-right: 12px;
+  padding-right: 10px;
+  border-right: 1px solid rgba(148, 163, 184, 0.28);
+  color: var(--syntax-comment);
+  text-align: right;
+  user-select: none;
+}
+
 .code-line.fixed-line {
   border-left-color: #2aa889;
   background: rgba(42, 168, 137, 0.14);
