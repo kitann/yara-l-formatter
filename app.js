@@ -24,8 +24,8 @@ const versionBadge = document.querySelector("[data-version-badge]");
 const toast = document.querySelector("#toast");
 
 const appConfig = window.YARALINT_CONFIG || {
-  version: "1.1.0",
-  build: "2026-05-20T21:54:06-05:00"
+  version: "1.1.1",
+  build: "2026-05-20T22:19:16-05:00"
 };
 const sectionPattern = /^(meta|strings|events|match|outcome|condition|options):$/i;
 const githubRawBase = "https://raw.githubusercontent.com/Neo23x0/signature-base/master/yara/";
@@ -378,6 +378,47 @@ function formatYaraL(source, options) {
   return {
     text: formatted.join("\n").trimEnd() + "\n",
     warnings
+  };
+}
+
+function normalizeForChangeComparison(value) {
+  return value.replace(/\r\n?/g, "\n").replace(/\n+$/g, "");
+}
+
+function getFormatterFixSummary(source, formattedText) {
+  const originalText = normalizeForChangeComparison(source);
+  const normalizedFormatted = normalizeForChangeComparison(formattedText);
+
+  if (originalText === normalizedFormatted) {
+    return { issues: [], fixedLines: new Set() };
+  }
+
+  const originalLines = originalText.split("\n");
+  const formattedLines = normalizedFormatted.split("\n");
+  const maxLines = Math.max(originalLines.length, formattedLines.length);
+  const fixedLines = new Set();
+
+  for (let index = 0; index < maxLines; index += 1) {
+    if ((originalLines[index] || "") !== (formattedLines[index] || "")) {
+      fixedLines.add(index + 1);
+    }
+  }
+
+  const changedCount = fixedLines.size;
+
+  return {
+    issues: [
+      {
+        severity: "FIXED",
+        line: changedCount === 1 ? [...fixedLines][0] : null,
+        message: `Applied formatter cleanup to ${changedCount} line${changedCount === 1 ? "" : "s"}.`,
+        original: "Original indentation, spacing, or section alignment",
+        corrected: "Normalized formatter output",
+        fixed: true,
+        recommendation: "Review the formatted output before copying or deploying the rule."
+      }
+    ],
+    fixedLines
   };
 }
 
@@ -1193,32 +1234,63 @@ const yaraLintEngine = (() => {
 
           const parsed = parseMetaAssignment(activeLine);
 
-          if (!parsed || parsed.kind !== "singleText" || !parsed.validValueBoundary) {
+          if (!parsed) {
             return;
           }
 
-          if (!state.allowFixes) {
+          if (!parsed.validValueBoundary) {
+            if (state.allowFixes && (parsed.kind === "text" || parsed.kind === "singleText")) {
+              const correctedValue = parsed.kind === "text"
+                ? `${parsed.value}"`
+                : quoteYaraText(parsed.value.slice(1));
+              const corrected = rebuildMetaAssignment(parsed, correctedValue);
+              state.lines[index] = corrected;
+              state.fixedLines.add(lineNumber);
+              state.issues.push(makeIssue({
+                severity: "FIXED",
+                line: lineNumber,
+                message: "Added missing closing quote to meta assignment.",
+                original: line,
+                corrected,
+                fixed: true
+              }));
+              return;
+            }
+
             state.issues.push(makeIssue({
               severity: "ERROR",
               line: lineNumber,
-              message: "Single-quoted meta value should be normalized to double quotes.",
+              message: "Unterminated meta value.",
               original: line,
-              recommendation: "Use double quotes for meta text values."
+              recommendation: "Close the meta string value with a matching quote."
             }));
             return;
           }
 
-          const corrected = rebuildMetaAssignment(parsed, normalizeSingleQuotedValue(parsed.value));
-          state.lines[index] = corrected;
-          state.fixedLines.add(lineNumber);
-          state.issues.push(makeIssue({
-            severity: "FIXED",
-            line: lineNumber,
-            message: "Normalized meta value from single quotes to double quotes.",
-            original: line,
-            corrected,
-            fixed: true
-          }));
+          if (parsed.kind === "singleText") {
+            if (!state.allowFixes) {
+              state.issues.push(makeIssue({
+                severity: "ERROR",
+                line: lineNumber,
+                message: "Single-quoted meta value should be normalized to double quotes.",
+                original: line,
+                recommendation: "Use double quotes for meta text values."
+              }));
+              return;
+            }
+
+            const corrected = rebuildMetaAssignment(parsed, normalizeSingleQuotedValue(parsed.value));
+            state.lines[index] = corrected;
+            state.fixedLines.add(lineNumber);
+            state.issues.push(makeIssue({
+              severity: "FIXED",
+              line: lineNumber,
+              message: "Normalized meta value from single quotes to double quotes.",
+              original: line,
+              corrected,
+              fixed: true
+            }));
+          }
         });
       }
     }
@@ -1361,17 +1433,28 @@ function runFormatter() {
     indentSize: Number(indentSize.value),
     compactBlankLines: compactBlankLines.checked
   });
+  const formatterFixSummary = getFormatterFixSummary(source, formatted.text);
   const lintResult = yaraLintEngine.lintAndFix(formatted.text);
+  const issues = [...formatterFixSummary.issues, ...lintResult.issues];
+  const fixedLines = new Set([...formatterFixSummary.fixedLines, ...lintResult.fixedLines]);
+  const hasErrors = issues.some((issue) => issue.severity === "ERROR");
+  const hasFixes = issues.some((issue) => issue.fixed);
+  const result = {
+    ...lintResult,
+    issues,
+    fixedLines,
+    status: hasErrors ? "INVALID" : hasFixes ? "FIXED" : lintResult.status
+  };
 
-  output.value = lintResult.text;
-  updateHighlightedOutput(lintResult.fixedLines);
-  setValidationBadge(lintResult.status);
-  renderLintResults(lintResult);
+  output.value = result.text;
+  updateHighlightedOutput(result.fixedLines);
+  setValidationBadge(result.status);
+  renderLintResults(result);
 
-  if (lintResult.status === "INVALID") {
+  if (result.status === "INVALID") {
     setStatus("Formatted, but lint validation found errors that need review.", "error");
-  } else if (lintResult.status === "FIXED") {
-    const fixedCount = lintResult.issues.filter((issue) => issue.fixed).length;
+  } else if (result.status === "FIXED") {
+    const fixedCount = result.issues.filter((issue) => issue.fixed).length;
     setStatus(`Auto-fixed ${fixedCount} issue${fixedCount === 1 ? "" : "s"}. Review Fix Summary before using the rule.`, "warning");
   } else {
     setStatus("Formatted and validated successfully.");
