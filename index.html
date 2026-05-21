@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <!-- YARALint build: 2026-05-20T22:19:16-05:00 | version: 1.1.1 -->
+    <!-- YARALint build: 2026-05-21T10:49:27-05:00 | version: 1.1.6 -->
     <title>YARALint | YARA-L Formatter, Linter &amp; Auto-Fix Toolkit</title>
     <meta name="description" content="Format, lint, auto-fix, and preview YARA-L and YARA-style detection rules online with syntax validation, automatic remediation, fix summaries, examples, and copy/download support.">
     <meta name="keywords" content="YARA-L formatter, YARA formatter, YARA-L rules, cybersecurity tools, detection engineering, Chronicle YARA-L, SIEM rules, security rule formatter">
@@ -17,11 +17,11 @@
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://yaralint.com/">
     <meta property="og:site_name" content="YARALint">
-    <meta property="og:image" content="https://yaralint.com/favicon-32x32.png?v=1.1.1">
-    <link rel="icon" type="image/x-icon" href="favicon.ico?v=1.1.1">
-    <link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png?v=1.1.1">
-    <link rel="icon" type="image/png" sizes="16x16" href="favicon-16x16.png?v=1.1.1">
-    <link rel="stylesheet" href="styles.css?v=1.1.1">
+    <meta property="og:image" content="https://yaralint.com/favicon-32x32.png?v=1.1.6">
+    <link rel="icon" type="image/x-icon" href="favicon.ico?v=1.1.6">
+    <link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png?v=1.1.6">
+    <link rel="icon" type="image/png" sizes="16x16" href="favicon-16x16.png?v=1.1.6">
+    <link rel="stylesheet" href="styles.css?v=1.1.6">
   </head>
   <body>
     <main class="app-shell">
@@ -39,13 +39,13 @@
                 <text class="rule-brace rule-brace-right" x="92" y="63">}</text>
               </g>
               <text class="brand-word brand-word-primary" x="155" y="73">Yara</text>
-              <text class="brand-word brand-word-accent" x="288" y="73">Lint</text>
+              <text class="brand-word brand-word-accent" x="270" y="73">Lint</text>
             </svg>
           </a>
           <div class="brand-copy">
             <div class="title-row">
               <h1 class="sr-only-heading">YARALint</h1>
-              <span class="version" data-version-badge>v1.1.1</span>
+              <span class="version" data-version-badge>v1.1.6</span>
             </div>
             <p>Format &bull; Lint &bull; Auto-Fix YARA-L rules with syntax validation and transparent fix summaries.</p>
           </div>
@@ -69,8 +69,12 @@
         <label class="editor-pane">
           <span class="pane-header">
             <span>INPUT</span>
-            <button id="chooseExampleBtn" type="button" class="header-action">Choose an example</button>
+            <span class="pane-header-actions">
+              <button id="chooseExampleBtn" type="button" class="header-action">Choose an example</button>
+              <button id="googleSecOpsRulesBtn" type="button" class="header-action google-secops-action">Google SecOps Rules</button>
+            </span>
           </span>
+          <span id="googleSecOpsSourceNote" class="source-note" hidden></span>
           <textarea id="input" spellcheck="false" placeholder="rule suspicious_login {
   meta:
     author = &quot;SOC&quot;
@@ -97,6 +101,24 @@
           </div>
           <div id="exampleCount" class="example-count">Loading examples...</div>
           <div id="exampleList" class="example-list"></div>
+        </section>
+
+        <section id="googleSecOpsPanel" class="secops-panel" aria-label="Google SecOps Community Rules" hidden>
+          <div class="secops-panel-header">
+            <div>
+              <h2>Google SecOps Community Rules</h2>
+              <p title="Source: Google SecOps public community examples.">Source: Google SecOps public community examples.</p>
+            </div>
+            <button id="closeGoogleSecOpsBtn" type="button" class="icon-button" aria-label="Close Google SecOps rules">x</button>
+          </div>
+          <div class="secops-panel-tools">
+            <input id="googleSecOpsSearch" type="search" placeholder="Search rule, file, or category">
+          </div>
+          <div id="googleSecOpsCount" class="example-count">Loading Google SecOps community rules...</div>
+          <div class="secops-browser">
+            <div id="googleSecOpsCategories" class="secops-categories"></div>
+            <div id="googleSecOpsRules" class="secops-rules"></div>
+          </div>
         </section>
 
         <div class="editor-pane">
@@ -155,10 +177,10 @@
 
     <script>
       window.YARALINT_CONFIG = {
-        version: "1.1.1",
-        build: "2026-05-20T22:19:16-05:00"
+        version: "1.1.6",
+        build: "2026-05-21T10:49:27-05:00"
       };
     </script>
-    <script src="app.js?v=1.1.1"></script>
+    <script src="app.js?v=1.1.6"></script>
   </body>
 </html>

@@ -5,12 +5,20 @@ const copyBtn = document.querySelector("#copyBtn");
 const downloadBtn = document.querySelector("#downloadBtn");
 const clearBtn = document.querySelector("#clearBtn");
 const chooseExampleBtn = document.querySelector("#chooseExampleBtn");
+const googleSecOpsRulesBtn = document.querySelector("#googleSecOpsRulesBtn");
 const closeExampleBtn = document.querySelector("#closeExampleBtn");
+const closeGoogleSecOpsBtn = document.querySelector("#closeGoogleSecOpsBtn");
 const randomExampleBtn = document.querySelector("#randomExampleBtn");
 const examplePanel = document.querySelector("#examplePanel");
+const googleSecOpsPanel = document.querySelector("#googleSecOpsPanel");
 const exampleSearch = document.querySelector("#exampleSearch");
+const googleSecOpsSearch = document.querySelector("#googleSecOpsSearch");
 const exampleList = document.querySelector("#exampleList");
 const exampleCount = document.querySelector("#exampleCount");
+const googleSecOpsCategories = document.querySelector("#googleSecOpsCategories");
+const googleSecOpsRules = document.querySelector("#googleSecOpsRules");
+const googleSecOpsCount = document.querySelector("#googleSecOpsCount");
+const googleSecOpsSourceNote = document.querySelector("#googleSecOpsSourceNote");
 const indentSize = document.querySelector("#indentSize");
 const themeMode = document.querySelector("#themeMode");
 const compactBlankLines = document.querySelector("#compactBlankLines");
@@ -24,12 +32,21 @@ const versionBadge = document.querySelector("[data-version-badge]");
 const toast = document.querySelector("#toast");
 
 const appConfig = window.YARALINT_CONFIG || {
-  version: "1.1.1",
-  build: "2026-05-20T22:19:16-05:00"
+  version: "1.1.6",
+  build: "2026-05-21T10:49:27-05:00"
 };
 const sectionPattern = /^(meta|strings|events|match|outcome|condition|options):$/i;
 const githubRawBase = "https://raw.githubusercontent.com/Neo23x0/signature-base/master/yara/";
 const exampleCachePrefix = "yaraLFormatterExample:";
+const googleSecOpsConfig = {
+  owner: "chronicle",
+  repo: "detection-rules",
+  branch: "main",
+  communityPath: "rules/community",
+  apiBase: "https://api.github.com/repos/chronicle/detection-rules",
+  htmlBase: "https://github.com/chronicle/detection-rules/blob",
+  rawBase: "https://raw.githubusercontent.com/chronicle/detection-rules"
+};
 const examples = [
   { filename: "apt_cobaltstrike.yar", category: "APT", tags: ["apt", "cobalt strike", "beacon"] },
   { filename: "apt_apt28.yar", category: "APT", tags: ["apt28", "fancy bear", "malware"] },
@@ -53,6 +70,10 @@ const examples = [
   keywords: `${example.filename} ${example.category} ${example.tags.join(" ")}`.toLowerCase()
 }));
 let toastTimer;
+let googleSecOpsState = {
+  manifest: null,
+  activeCategory: ""
+};
 
 function setStatus(message, type = "ok") {
   statusBox.textContent = message;
@@ -1490,11 +1511,102 @@ function downloadOutput() {
 function clearEditors() {
   input.value = "";
   output.value = "";
+  googleSecOpsSourceNote.hidden = true;
+  googleSecOpsSourceNote.textContent = "";
   updateHighlightedOutput();
   setValidationBadge("READY");
   renderLintResults();
   setStatus("Editors cleared.");
   input.focus();
+}
+
+function isGoogleSecOpsRuleFile(path) {
+  return new RegExp(`^${googleSecOpsConfig.communityPath}/[^/]+/.+\\.(yaral|yara|yar)$`, "i").test(path);
+}
+
+function getGoogleSecOpsRawUrl(path, commitSha = googleSecOpsConfig.branch) {
+  return `${googleSecOpsConfig.rawBase}/${commitSha}/${path}`;
+}
+
+function getGoogleSecOpsSourceUrl(path, commitSha = googleSecOpsConfig.branch) {
+  return `${googleSecOpsConfig.htmlBase}/${commitSha}/${path}`;
+}
+
+function buildGoogleSecOpsManifest(treeItems, metadata = {}) {
+  const commitSha = metadata.commitSha || googleSecOpsConfig.branch;
+  const lastSyncedAt = metadata.lastSyncedAt || new Date().toISOString();
+  const rules = treeItems
+    .filter((item) => item.type === "blob" && isGoogleSecOpsRuleFile(item.path))
+    .map((item) => {
+      const parts = item.path.split("/");
+      const category = parts[2];
+      const fileName = parts[parts.length - 1];
+      const relativePath = parts.slice(2).join("/");
+      const folderPath = parts.slice(2, -1).join("/");
+
+      return {
+        category,
+        fileName,
+        folderPath,
+        relativePath,
+        repoPath: item.path,
+        rawUrl: getGoogleSecOpsRawUrl(item.path, commitSha),
+        sourceUrl: getGoogleSecOpsSourceUrl(item.path, commitSha),
+        commitSha,
+        lastSyncedAt,
+        sha: item.sha || "",
+        size: item.size || 0,
+        keywords: `${category} ${folderPath} ${fileName} ${item.path}`.toLowerCase()
+      };
+    })
+    .sort((a, b) => a.relativePath.localeCompare(b.relativePath));
+
+  const categories = [...new Set(rules.map((rule) => rule.category))]
+    .sort((a, b) => a.localeCompare(b))
+    .map((category) => ({
+      name: category,
+      rules: rules.filter((rule) => rule.category === category)
+    }));
+
+  return {
+    source: "Google SecOps public community examples",
+    commitSha,
+    lastSyncedAt,
+    categories,
+    rules
+  };
+}
+
+async function fetchGoogleSecOpsManifest() {
+  const branchResponse = await fetch(`${googleSecOpsConfig.apiBase}/branches/${googleSecOpsConfig.branch}`);
+  let commitSha = googleSecOpsConfig.branch;
+
+  if (branchResponse.ok) {
+    const branchData = await branchResponse.json();
+    commitSha = branchData.commit?.sha || commitSha;
+  }
+
+  const treeResponse = await fetch(`${googleSecOpsConfig.apiBase}/git/trees/${googleSecOpsConfig.branch}?recursive=1`);
+
+  if (!treeResponse.ok) {
+    throw new Error(`GitHub returned ${treeResponse.status}`);
+  }
+
+  const treeData = await treeResponse.json();
+
+  if (treeData.truncated) {
+    throw new Error("GitHub returned a truncated repository tree.");
+  }
+
+  return buildGoogleSecOpsManifest(treeData.tree || [], {
+    commitSha,
+    lastSyncedAt: new Date().toISOString()
+  });
+}
+
+async function getGoogleSecOpsManifest() {
+  googleSecOpsState.manifest = await fetchGoogleSecOpsManifest();
+  return googleSecOpsState.manifest;
 }
 
 function getExampleCacheKey(example) {
@@ -1549,6 +1661,7 @@ async function loadRemoteExample(example) {
 
   if (cachedRule) {
     input.value = cachedRule;
+    googleSecOpsSourceNote.hidden = true;
     runFormatter();
     closeExamplePanel();
     showToast(`Loaded ${example.filename} from cache.`);
@@ -1567,6 +1680,7 @@ async function loadRemoteExample(example) {
     const ruleText = await response.text();
     localStorage.setItem(cacheKey, ruleText);
     input.value = ruleText;
+    googleSecOpsSourceNote.hidden = true;
     runFormatter();
     closeExamplePanel();
     showToast(`Loaded ${example.filename}.`);
@@ -1576,14 +1690,138 @@ async function loadRemoteExample(example) {
   }
 }
 
+function getFilteredGoogleSecOpsRules() {
+  const manifest = googleSecOpsState.manifest;
+  const query = googleSecOpsSearch.value.trim().toLowerCase();
+
+  if (!manifest) {
+    return [];
+  }
+
+  return manifest.rules.filter((rule) => !query || rule.keywords.includes(query));
+}
+
+function setActiveGoogleSecOpsCategory(category) {
+  googleSecOpsState.activeCategory = category;
+  renderGoogleSecOpsRules();
+}
+
+function renderGoogleSecOpsRules() {
+  const manifest = googleSecOpsState.manifest;
+
+  if (!manifest) {
+    googleSecOpsCategories.innerHTML = "";
+    googleSecOpsRules.innerHTML = "";
+    return;
+  }
+
+  const matches = getFilteredGoogleSecOpsRules();
+  const categories = manifest.categories
+    .map((category) => ({
+      ...category,
+      rules: matches.filter((rule) => rule.category === category.name)
+    }))
+    .filter((category) => category.rules.length > 0);
+
+  if (!categories.some((category) => category.name === googleSecOpsState.activeCategory)) {
+    googleSecOpsState.activeCategory = categories[0]?.name || "";
+  }
+
+  googleSecOpsCount.textContent = `${matches.length} of ${manifest.rules.length} Google SecOps public community examples`;
+  googleSecOpsCategories.innerHTML = "";
+  googleSecOpsRules.innerHTML = "";
+
+  if (matches.length === 0) {
+    googleSecOpsRules.innerHTML = '<div class="example-count">No Google SecOps community rules matched your search.</div>';
+    return;
+  }
+
+  categories.forEach((category) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = `secops-category${category.name === googleSecOpsState.activeCategory ? " active" : ""}`;
+    button.textContent = `${category.name} (${category.rules.length})`;
+    button.addEventListener("mouseenter", () => setActiveGoogleSecOpsCategory(category.name));
+    button.addEventListener("focus", () => setActiveGoogleSecOpsCategory(category.name));
+    button.addEventListener("click", () => setActiveGoogleSecOpsCategory(category.name));
+    googleSecOpsCategories.appendChild(button);
+  });
+
+  const activeRules = categories.find((category) => category.name === googleSecOpsState.activeCategory)?.rules || [];
+
+  activeRules.forEach((rule) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "secops-rule-item";
+    button.title = `${rule.repoPath}\nSource: Google SecOps public community examples.`;
+    button.innerHTML = `
+      <span class="example-file">${rule.fileName}</span>
+      <span class="example-snippet">${rule.relativePath}</span>
+    `;
+    button.addEventListener("click", () => loadGoogleSecOpsRule(rule));
+    googleSecOpsRules.appendChild(button);
+  });
+}
+
+async function renderGoogleSecOpsPanel() {
+  googleSecOpsCount.textContent = "Loading Google SecOps public community examples...";
+  googleSecOpsCategories.innerHTML = "";
+  googleSecOpsRules.innerHTML = "";
+
+  try {
+    await getGoogleSecOpsManifest();
+    renderGoogleSecOpsRules();
+  } catch (error) {
+    googleSecOpsCount.textContent = "Could not load Google SecOps community rules.";
+    googleSecOpsRules.innerHTML = '<div class="example-count">GitHub rule discovery failed. Check your connection or try again later.</div>';
+    setStatus(`Google SecOps rules load failed: ${error.message}`, "error");
+  }
+}
+
+async function loadGoogleSecOpsRule(rule) {
+  googleSecOpsCount.textContent = `Loading ${rule.relativePath}...`;
+
+  try {
+    const response = await fetch(rule.rawUrl);
+
+    if (!response.ok) {
+      throw new Error(`GitHub returned ${response.status}`);
+    }
+
+    input.value = await response.text();
+    googleSecOpsSourceNote.textContent = `Loaded from Google SecOps Community Rules: ${rule.relativePath}`;
+    googleSecOpsSourceNote.title = `Source: Google SecOps public community examples. Commit: ${rule.commitSha}`;
+    googleSecOpsSourceNote.hidden = false;
+    closeGoogleSecOpsPanel();
+    showToast(`Loaded ${rule.fileName}.`);
+    setStatus("Loaded public community example. Review and test before production use.", "warning");
+    input.focus();
+  } catch (error) {
+    googleSecOpsCount.textContent = `Could not load ${rule.relativePath}.`;
+    setStatus(`Google SecOps rule load failed: ${error.message}`, "error");
+  }
+}
+
 function openExamplePanel() {
   examplePanel.hidden = false;
+  closeGoogleSecOpsPanel();
   renderExamples();
   exampleSearch.focus();
 }
 
 function closeExamplePanel() {
   examplePanel.hidden = true;
+}
+
+function openGoogleSecOpsPanel() {
+  googleSecOpsPanel.hidden = false;
+  closeExamplePanel();
+  renderGoogleSecOpsPanel();
+  googleSecOpsSearch.focus();
+}
+
+function closeGoogleSecOpsPanel() {
+  googleSecOpsPanel.hidden = true;
 }
 
 function loadRandomExample() {
@@ -1633,9 +1871,12 @@ copyBtn.addEventListener("click", copyOutput);
 downloadBtn.addEventListener("click", downloadOutput);
 clearBtn.addEventListener("click", clearEditors);
 chooseExampleBtn.addEventListener("click", openExamplePanel);
+googleSecOpsRulesBtn.addEventListener("click", openGoogleSecOpsPanel);
 closeExampleBtn.addEventListener("click", closeExamplePanel);
+closeGoogleSecOpsBtn.addEventListener("click", closeGoogleSecOpsPanel);
 randomExampleBtn.addEventListener("click", loadRandomExample);
 exampleSearch.addEventListener("input", renderExamples);
+googleSecOpsSearch.addEventListener("input", renderGoogleSecOpsRules);
 indentSize.addEventListener("change", runFormatter);
 themeMode.addEventListener("change", applyTheme);
 compactBlankLines.addEventListener("change", runFormatter);
@@ -1650,7 +1891,17 @@ document.addEventListener("keydown", (event) => {
   if (event.key === "Escape" && !examplePanel.hidden) {
     closeExamplePanel();
   }
+
+  if (event.key === "Escape" && !googleSecOpsPanel.hidden) {
+    closeGoogleSecOpsPanel();
+  }
 });
+
+window.YARALINT_TESTS = {
+  ...(window.YARALINT_TESTS || {}),
+  buildGoogleSecOpsManifest,
+  isGoogleSecOpsRuleFile
+};
 
 initializeVersionBadge();
 initializeTheme();
