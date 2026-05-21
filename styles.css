@@ -590,24 +590,11 @@ pre {
 }
 
 .code-line {
-  display: grid;
-  grid-template-columns: 4ch minmax(0, 1fr);
-  gap: 12px;
+  display: block;
   min-height: 1.45em;
   padding: 0 6px;
   margin: 0 -6px;
   border-left: 3px solid transparent;
-}
-
-.line-number {
-  color: var(--muted);
-  opacity: 0.7;
-  text-align: right;
-  user-select: none;
-}
-
-.line-source {
-  min-width: 0;
 }
 
 .code-line.fixed-line {

@@ -24,8 +24,8 @@ const versionBadge = document.querySelector("[data-version-badge]");
 const toast = document.querySelector("#toast");
 
 const appConfig = window.YARALINT_CONFIG || {
-  version: "1.0.10",
-  build: "2026-05-19T17:50:34-05:00"
+  version: "1.0.9",
+  build: "2026-05-20T21:25:52-05:00"
 };
 const sectionPattern = /^(meta|strings|events|match|outcome|condition|options):$/i;
 const githubRawBase = "https://raw.githubusercontent.com/Neo23x0/signature-base/master/yara/";
@@ -139,7 +139,7 @@ function highlightYaraL(source, fixedLines = new Set()) {
   return source.split("\n").map((line, index) => {
     const lineNumber = index + 1;
     const className = fixedLines.has(lineNumber) ? "code-line fixed-line" : "code-line";
-    return `<span class="${className}" data-line="${lineNumber}"><span class="line-number" aria-hidden="true">${String(lineNumber).padStart(3, " ")}</span><span class="line-source">${highlightLine(line) || " "}</span></span>`;
+    return `<span class="${className}" data-line="${lineNumber}">${highlightLine(line) || " "}</span>`;
   }).join("");
 }
 
@@ -149,6 +149,10 @@ function updateHighlightedOutput(fixedLines = new Set()) {
     : "";
 }
 
+function isHexStringStart(line) {
+  return /^\$[A-Za-z_][\w]*\s*=\s*\{/.test(line);
+}
+
 function formatYaraL(source, options) {
   const indentUnit = " ".repeat(options.indentSize);
   const lines = source.replace(/\r\n?/g, "\n").split("\n");
@@ -156,6 +160,8 @@ function formatYaraL(source, options) {
   const warnings = [];
   let indentLevel = 0;
   let sectionIndentLevel = null;
+  let currentSection = null;
+  let hexBlockBalance = 0;
   let previousWasBlank = false;
 
   lines.forEach((rawLine, index) => {
@@ -171,21 +177,31 @@ function formatYaraL(source, options) {
 
     previousWasBlank = false;
 
-    let line = normalizeOperators(trimmed);
-    const closes = countOutsideQuotes(line, "}");
-    const opens = countOutsideQuotes(line, "{");
-    const leadingCloses = countLeadingClosingBraces(line);
+    const insideHexBlock = currentSection === "strings" && hexBlockBalance > 0;
+    let line = insideHexBlock ? rawLine.replace(/\s+$/g, "") : normalizeOperators(trimmed);
+    const startsHexBlock = currentSection === "strings" && isHexStringStart(line);
+    const isHexBlockLine = insideHexBlock || startsHexBlock;
+    const hexDelta = isHexBlockLine
+      ? countOutsideQuotes(line, "{") - countOutsideQuotes(line, "}")
+      : 0;
+    const closes = isHexBlockLine ? 0 : countOutsideQuotes(line, "}");
+    const opens = isHexBlockLine ? 0 : countOutsideQuotes(line, "{");
+    const leadingCloses = isHexBlockLine ? 0 : countLeadingClosingBraces(line);
 
     if (leadingCloses > 0) {
       indentLevel = Math.max(indentLevel - leadingCloses, 0);
       if (sectionIndentLevel !== null && indentLevel <= sectionIndentLevel) {
         sectionIndentLevel = null;
       }
+      currentSection = null;
     }
 
-    if (sectionPattern.test(line)) {
+    if (insideHexBlock) {
+      formatted.push(line);
+    } else if (sectionPattern.test(line)) {
       formatted.push(`${indentUnit.repeat(indentLevel)}${line}`);
       sectionIndentLevel = indentLevel;
+      currentSection = line.slice(0, -1).toLowerCase();
     } else {
       const bodyIndent = sectionIndentLevel !== null && !line.startsWith("}")
         ? sectionIndentLevel + 1 + Math.max(indentLevel - sectionIndentLevel, 0)
@@ -198,6 +214,10 @@ function formatYaraL(source, options) {
     if (indentLevel < 0) {
       warnings.push(`Line ${index + 1}: closing brace without a matching opening brace.`);
       indentLevel = 0;
+    }
+
+    if (isHexBlockLine) {
+      hexBlockBalance = Math.max(hexBlockBalance + hexDelta, 0);
     }
   });
 
@@ -277,11 +297,30 @@ const yaraLintEngine = (() => {
     return { value, modifiers: "" };
   }
 
-  function hasUnclosedHexValue(lines) {
-    return lines.some((line) => {
-      const trimmed = line.trim();
-      return /^\$[A-Za-z_][\w]*\s*=\s*\{/.test(trimmed) && !/\}/.test(trimmed);
-    });
+  function hasUnclosedHexValue(lines, context = buildContext(lines)) {
+    for (let index = 0; index < lines.length; index += 1) {
+      const lineNumber = index + 1;
+
+      if (context.sectionsByLine.get(lineNumber) !== "strings") {
+        continue;
+      }
+
+      const parsed = parseStringDeclaration(lines[index]);
+
+      if (!parsed || parsed.kind !== "hex") {
+        continue;
+      }
+
+      const block = collectHexBlock(lines, index, context, parsed);
+
+      if (!block.complete) {
+        return true;
+      }
+
+      index = block.endIndex;
+    }
+
+    return false;
   }
 
   function inferSectionIndent(lines) {
@@ -361,26 +400,12 @@ const yaraLintEngine = (() => {
     }
   }
 
-  function getUniqueStringIdentifier(id, seen) {
-    const base = id.replace(/_\d+$/, "");
-    let counter = 2;
-    let candidate = `${base}_${counter}`;
-
-    while (seen.has(candidate)) {
-      counter += 1;
-      candidate = `${base}_${counter}`;
-    }
-
-    return candidate;
-  }
-
   function lineWithoutComment(line) {
     let quote = null;
     let escaped = false;
 
     for (let index = 0; index < line.length; index += 1) {
       const char = line[index];
-      const nextChar = line[index + 1];
 
       if (escaped) {
         escaped = false;
@@ -406,71 +431,12 @@ const yaraLintEngine = (() => {
         return line.slice(0, index);
       }
 
-      if (quote === null && char === "/" && nextChar === "/") {
+      if (quote === null && char === "/" && line[index + 1] === "/" && (index === 0 || /\s/.test(line[index - 1]))) {
         return line.slice(0, index);
       }
     }
 
     return line;
-  }
-
-  function buildBlockCommentLines(lines) {
-    const commentLines = new Set();
-    let inBlockComment = false;
-
-    lines.forEach((line, index) => {
-      let quote = null;
-      let escaped = false;
-      let lineHasBlockComment = inBlockComment;
-
-      for (let offset = 0; offset < line.length; offset += 1) {
-        const char = line[offset];
-        const nextChar = line[offset + 1];
-
-        if (escaped) {
-          escaped = false;
-          continue;
-        }
-
-        if (char === "\\") {
-          escaped = true;
-          continue;
-        }
-
-        if ((char === '"' || char === "'") && quote === null) {
-          quote = char;
-          continue;
-        }
-
-        if (char === quote) {
-          quote = null;
-          continue;
-        }
-
-        if (quote !== null) {
-          continue;
-        }
-
-        if (!inBlockComment && char === "/" && nextChar === "*") {
-          inBlockComment = true;
-          lineHasBlockComment = true;
-          offset += 1;
-          continue;
-        }
-
-        if (inBlockComment && char === "*" && nextChar === "/") {
-          inBlockComment = false;
-          lineHasBlockComment = true;
-          offset += 1;
-        }
-      }
-
-      if (lineHasBlockComment) {
-        commentLines.add(index + 1);
-      }
-    });
-
-    return commentLines;
   }
 
   function getSectionName(line) {
@@ -624,11 +590,110 @@ const yaraLintEngine = (() => {
     });
   }
 
-  function stripLeadingModifierComma(modifiers) {
-    const corrected = modifiers.replace(/^,\s*/, "");
-    return corrected !== modifiers && validateModifiers(corrected).length === 0
-      ? corrected
-      : null;
+  function stripHexBlockComments(value) {
+    return value.replace(/\/\*[\s\S]*?\*\//g, " ");
+  }
+
+  function collectHexBlock(lines, startIndex, context, parsed) {
+    const parts = [];
+    let balance = 0;
+    let sawOpeningBrace = false;
+
+    for (let index = startIndex; index < lines.length; index += 1) {
+      const lineNumber = index + 1;
+      const section = context.sectionsByLine.get(lineNumber);
+      const sectionName = getSectionName(lines[index]);
+
+      if (index > startIndex && sectionName) {
+        return {
+          complete: false,
+          value: parts.join("\n"),
+          endIndex: index - 1,
+          message: `Hex string block is missing a closing } before the ${sectionName}: section.`
+        };
+      }
+
+      if (index > startIndex && section !== "strings") {
+        return {
+          complete: false,
+          value: parts.join("\n"),
+          endIndex: index - 1,
+          message: "Hex string block is missing a closing } before the strings section ends."
+        };
+      }
+
+      const fragment = index === startIndex
+        ? parsed.rawValue.trim()
+        : lineWithoutComment(lines[index]).trim();
+      let closingIndex = -1;
+
+      for (let charIndex = 0; charIndex < fragment.length; charIndex += 1) {
+        const char = fragment[charIndex];
+
+        if (char === "{") {
+          balance += 1;
+          sawOpeningBrace = true;
+        } else if (char === "}") {
+          balance -= 1;
+
+          if (balance === 0 && sawOpeningBrace) {
+            closingIndex = charIndex;
+            break;
+          }
+        }
+      }
+
+      if (closingIndex !== -1) {
+        parts.push(fragment.slice(0, closingIndex + 1));
+
+        return {
+          complete: true,
+          value: parts.join("\n"),
+          modifiers: fragment.slice(closingIndex + 1).trim(),
+          endIndex: index,
+          startLine: startIndex + 1,
+          endLine: lineNumber
+        };
+      }
+
+      parts.push(fragment);
+    }
+
+    return {
+      complete: false,
+      value: parts.join("\n"),
+      endIndex: lines.length - 1,
+      message: "Hex string block is missing a closing } before the end of the rule."
+    };
+  }
+
+  function getHexBlockLineNumbers(lines, context) {
+    const lineNumbers = new Set();
+
+    for (let index = 0; index < lines.length; index += 1) {
+      const lineNumber = index + 1;
+
+      if (context.sectionsByLine.get(lineNumber) !== "strings") {
+        continue;
+      }
+
+      const parsed = parseStringDeclaration(lines[index]);
+
+      if (!parsed || parsed.kind !== "hex") {
+        continue;
+      }
+
+      const block = collectHexBlock(lines, index, context, parsed);
+      const endIndex = Math.max(block.endIndex, index);
+
+      for (let hexIndex = index; hexIndex <= endIndex; hexIndex += 1) {
+        lineNumbers.add(hexIndex + 1);
+      }
+
+      index = endIndex;
+    }
+
+    return lineNumbers;
   }
 
   function validateHexString(hexValue) {
@@ -636,7 +701,7 @@ const yaraLintEngine = (() => {
       return ["Hex string must start with { and end with }."];
     }
 
-    const body = hexValue.slice(1, -1).trim();
+    const body = stripHexBlockComments(hexValue.slice(1, -1)).trim();
 
     if (!body) {
       return ["Hex string is empty."];
@@ -688,17 +753,14 @@ const yaraLintEngine = (() => {
       validate(state) {
         const seen = new Map();
 
-        state.lines.forEach((line, index) => {
+        for (let index = 0; index < state.lines.length; index += 1) {
+          const line = state.lines[index];
           const lineNumber = index + 1;
           const section = state.context.sectionsByLine.get(lineNumber);
           const trimmed = line.trim();
 
-          if (/^rule\s+[A-Za-z_][\w]*\b/.test(trimmed)) {
-            seen.clear();
-          }
-
-          if (section !== "strings" || state.blockCommentLines.has(lineNumber) || !trimmed || trimmed.startsWith("#") || trimmed.startsWith("}") || getSectionName(line)) {
-            return;
+          if (section !== "strings" || !trimmed || trimmed.startsWith("#") || trimmed.startsWith("//") || trimmed.startsWith("}") || getSectionName(line)) {
+            continue;
           }
 
           let currentLine = state.lines[index];
@@ -712,40 +774,58 @@ const yaraLintEngine = (() => {
               original: currentLine,
               recommendation: "Use a valid YARA string identifier and assignment syntax."
             }));
-            return;
+            continue;
           }
 
           if (seen.has(parsed.id)) {
-            if (state.allowFixes) {
-              const originalId = parsed.id;
-              const correctedId = getUniqueStringIdentifier(originalId, seen);
-              parsed = { ...parsed, id: correctedId };
-              const corrected = rebuildStringDeclaration(parsed, parsed.value);
-              state.lines[index] = corrected;
-              state.fixedLines.add(lineNumber);
-              state.issues.push(makeIssue({
-                severity: "FIXED",
-                line: lineNumber,
-                message: `Renamed duplicate string identifier ${originalId} to ${correctedId}.`,
-                original: currentLine,
-                corrected,
-                fixed: true,
-                recommendation: "Review direct condition references if this rule did not use any/all of them."
-              }));
-              currentLine = corrected;
-              seen.set(correctedId, lineNumber);
-            } else {
+            state.issues.push(makeIssue({
+              severity: "WARNING",
+              line: lineNumber,
+              message: `Duplicate string identifier preserved: ${parsed.id}.`,
+              original: currentLine,
+              recommendation: "YARALint does not rename user-defined string identifiers because conditions may intentionally reference them."
+            }));
+          } else {
+            seen.set(parsed.id, lineNumber);
+          }
+
+          if (parsed.kind === "hex") {
+            const block = collectHexBlock(state.lines, index, state.context, parsed);
+
+            if (!block.complete) {
               state.issues.push(makeIssue({
                 severity: "ERROR",
                 line: lineNumber,
-                message: `Duplicate string identifier: ${parsed.id}.`,
+                message: block.message,
                 original: currentLine,
-                recommendation: "Rename the duplicate identifier and update condition references if needed."
+                recommendation: "Close the multi-line hex string with } before starting another section."
               }));
-              return;
+              index = Math.max(block.endIndex, index);
+              continue;
             }
-          } else {
-            seen.set(parsed.id, lineNumber);
+
+            validateHexString(block.value).forEach((message) => {
+              state.issues.push(makeIssue({
+                severity: "ERROR",
+                line: lineNumber,
+                message,
+                original: currentLine,
+                recommendation: "Use two-character hex bytes, wildcards, jumps, or grouping tokens inside { }."
+              }));
+            });
+
+            validateModifiers(block.modifiers || parsed.modifiers).forEach((modifier) => {
+              state.issues.push(makeIssue({
+                severity: "ERROR",
+                line: lineNumber,
+                message: `Invalid string modifier: ${modifier}.`,
+                original: currentLine,
+                recommendation: "Use supported YARA string modifiers such as ascii, wide, nocase, fullword, private, xor, base64, or base64wide."
+              }));
+            });
+
+            index = block.endIndex;
+            continue;
           }
 
           if (!parsed.validValueBoundary) {
@@ -768,7 +848,7 @@ const yaraLintEngine = (() => {
               parsed = parseStringDeclaration(currentLine);
 
               if (!parsed) {
-                return;
+                continue;
               }
             } else {
               state.issues.push(makeIssue({
@@ -778,25 +858,8 @@ const yaraLintEngine = (() => {
                 original: currentLine,
                 recommendation: "Close the string, regex, or hex value before formatting again."
               }));
-              return;
+              continue;
             }
-          }
-
-          const correctedModifiers = stripLeadingModifierComma(parsed.modifiers);
-          if (correctedModifiers !== null && state.allowFixes) {
-            parsed = { ...parsed, modifiers: correctedModifiers };
-            const corrected = rebuildStringDeclaration(parsed, parsed.value);
-            state.lines[index] = corrected;
-            state.fixedLines.add(lineNumber);
-            state.issues.push(makeIssue({
-              severity: "FIXED",
-              line: lineNumber,
-              message: "Removed stray comma before string modifiers.",
-              original: currentLine,
-              corrected,
-              fixed: true
-            }));
-            currentLine = corrected;
           }
 
           if (parsed.kind === "bare" && state.allowFixes && shouldAutoQuoteBareString(parsed.value)) {
@@ -845,18 +908,6 @@ const yaraLintEngine = (() => {
             }));
           }
 
-          if (parsed.kind === "hex") {
-            validateHexString(parsed.value).forEach((message) => {
-              state.issues.push(makeIssue({
-                severity: "ERROR",
-                line: lineNumber,
-                message,
-                original: currentLine,
-                recommendation: "Use two-character hex bytes, wildcards, jumps, or grouping tokens inside { }."
-              }));
-            });
-          }
-
           validateModifiers(parsed.modifiers).forEach((modifier) => {
             state.issues.push(makeIssue({
               severity: "ERROR",
@@ -866,7 +917,7 @@ const yaraLintEngine = (() => {
               recommendation: "Use supported YARA string modifiers such as ascii, wide, nocase, fullword, private, xor, base64, or base64wide."
             }));
           });
-        });
+        }
       }
     },
     {
@@ -917,8 +968,14 @@ const yaraLintEngine = (() => {
       id: "brace-balance",
       validate(state) {
         let balance = 0;
+        const hexBlockLines = getHexBlockLineNumbers(state.lines, state.context);
+        const hasOpenHexBlock = hasUnclosedHexValue(state.lines, state.context);
 
         state.lines.forEach((line, index) => {
+          if (hexBlockLines.has(index + 1)) {
+            return;
+          }
+
           const opens = countOutsideQuotes(line, "{");
           const closes = countOutsideQuotes(line, "}");
           balance += opens - closes;
@@ -935,7 +992,7 @@ const yaraLintEngine = (() => {
           }
         });
 
-        if (balance === 1 && state.allowFixes && !hasUnclosedHexValue(state.lines)) {
+        if (balance === 1 && state.allowFixes && !hasOpenHexBlock) {
           const insertIndex = state.lines.length;
           state.lines.push("}");
           markFixedRange(state, insertIndex, 1);
@@ -952,13 +1009,15 @@ const yaraLintEngine = (() => {
         }
 
         if (balance > 0) {
+          if (hasOpenHexBlock) {
+            return;
+          }
+
           state.issues.push(makeIssue({
             severity: "ERROR",
             message: `${balance} opening brace${balance === 1 ? "" : "s"} missing a closing brace.`,
             original: "(unbalanced braces)",
-            recommendation: hasUnclosedHexValue(state.lines)
-              ? "Review malformed hex strings before adding braces automatically."
-              : "Add the missing closing brace manually so the rule boundary is clear."
+            recommendation: "Add the missing closing brace manually so the rule boundary is clear."
           }));
         }
       }
@@ -977,34 +1036,6 @@ const yaraLintEngine = (() => {
           const parsed = parseMetaAssignment(line);
 
           if (!parsed || parsed.kind !== "singleText" || !parsed.validValueBoundary) {
-            if (parsed && !parsed.validValueBoundary && (parsed.kind === "text" || parsed.kind === "singleText")) {
-              if (!state.allowFixes) {
-                state.issues.push(makeIssue({
-                  severity: "ERROR",
-                  line: lineNumber,
-                  message: "Unterminated meta string value.",
-                  original: line,
-                  recommendation: "Close the meta string value with a matching quote."
-                }));
-                return;
-              }
-
-              const correctedValue = parsed.kind === "text"
-                ? `${parsed.value}"`
-                : quoteYaraText(parsed.value.slice(1));
-              const corrected = rebuildMetaAssignment(parsed, correctedValue);
-              state.lines[index] = corrected;
-              state.fixedLines.add(lineNumber);
-              state.issues.push(makeIssue({
-                severity: "FIXED",
-                line: lineNumber,
-                message: "Added missing closing quote to meta assignment.",
-                original: line,
-                corrected,
-                fixed: true
-              }));
-            }
-
             return;
           }
 
@@ -1039,7 +1070,6 @@ const yaraLintEngine = (() => {
     const state = {
       lines,
       context: buildContext(lines),
-      blockCommentLines: buildBlockCommentLines(lines),
       issues: [],
       fixedLines: new Set(fixedLines),
       allowFixes
@@ -1119,7 +1149,7 @@ function renderLintResults(result = null) {
   const fixedCount = issues.filter((issue) => issue.fixed).length;
   const errorCount = issues.filter((issue) => issue.severity === "ERROR").length;
 
-  lintResultCount.textContent = `Total errors found: ${issues.length} | Fixed: ${fixedCount} | Manual review: ${errorCount}`;
+  lintResultCount.textContent = `${issues.length} finding${issues.length === 1 ? "" : "s"} | ${fixedCount} fixed | ${errorCount} error${errorCount === 1 ? "" : "s"}`;
   lintResultsPanel.open = issues.length > 0;
 
   if (issues.length === 0) {
