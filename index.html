@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <!-- YARALint build: 2026-05-21T20:15:13-05:00 | version: 1.2.1 -->
+    <!-- YARALint build: 2026-05-21T20:29:19-05:00 | version: 1.2.2 -->
     <title>YARALint | YARA-L Formatter, Linter &amp; Auto-Fix Toolkit</title>
     <meta name="description" content="Format, lint, auto-fix, and preview YARA-L and YARA-style detection rules online with syntax validation, automatic remediation, fix summaries, examples, and copy/download support.">
     <meta name="keywords" content="YARA-L formatter, YARA formatter, YARA-L rules, cybersecurity tools, detection engineering, Chronicle YARA-L, SIEM rules, security rule formatter">
@@ -17,11 +17,11 @@
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://yaralint.com/">
     <meta property="og:site_name" content="YARALint">
-    <meta property="og:image" content="https://yaralint.com/favicon-32x32.png?v=1.2.1">
-    <link rel="icon" type="image/x-icon" href="favicon.ico?v=1.2.1">
-    <link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png?v=1.2.1">
-    <link rel="icon" type="image/png" sizes="16x16" href="favicon-16x16.png?v=1.2.1">
-    <link rel="stylesheet" href="styles.css?v=1.2.1">
+    <meta property="og:image" content="https://yaralint.com/favicon-32x32.png?v=1.2.2">
+    <link rel="icon" type="image/x-icon" href="favicon.ico?v=1.2.2">
+    <link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png?v=1.2.2">
+    <link rel="icon" type="image/png" sizes="16x16" href="favicon-16x16.png?v=1.2.2">
+    <link rel="stylesheet" href="styles.css?v=1.2.2">
   </head>
   <body>
     <main class="app-shell">
@@ -45,7 +45,7 @@
           <div class="brand-copy">
             <div class="title-row">
               <h1 class="sr-only-heading">YARALint</h1>
-              <span class="version" data-version-badge>v1.2.1</span>
+              <span class="version" data-version-badge>v1.2.2</span>
             </div>
             <p>Format &bull; Lint &bull; Auto-Fix YARA-L rules with syntax validation and transparent fix summaries.</p>
           </div>
@@ -75,31 +75,29 @@
             </span>
           </span>
           <span id="googleSecOpsSourceNote" class="source-note" hidden></span>
-          <textarea id="input" spellcheck="false" placeholder="/*
-  Livehunt YARA ruleset template
-
-  Learn more about writing Livehunt YARA rules at
-  https://docs.virustotal.com/docs/livehunt.
-
-  Livehunt allows you to match file report metadata in addition to binary contents.
-  A ruleset is a collection of one or more Livehunt rules. A ruleset containing 3
-  YARA rules will consume 3 Livehunt rule credits. 2 rulesets, one containing 2
-  YARA rules and another one containing 3 YARA rules, will consume 5 Livehunt
-  rule credits.
-*/
-rule yara_template
+          <textarea id="input" spellcheck="false" placeholder="import &quot;vt&quot;
+rule MALWARE_Win_DarkGate
 {
   meta:
-    author = &quot;&quot;
-    description = &quot;&quot;
-    target_entity = &quot;file&quot;
+    author = &quot;ditekShen&quot;
+    description = &quot;Detects DarkGate infostealer and coinminer&quot;
   strings:
-    $a = &quot;First string&quot;
-    $b = &quot;Second string&quot;
-    $c = &quot;Third string&quot;
-    $d = &quot;Fourth string&quot;
+    $x1 = &quot;SYSTEM Elevation: Completed&quot; ascii
+    $x2 = &quot;-u 0xDark&quot; ascii
+    $x3 = &quot;DarkGate&quot; ascii
+    $x4 = &quot;/c cmdkey /generic:\&quot;127.0.0.2\&quot;&quot; ascii
+    $s1 = &quot;C:\\temp\\crash.txt&quot; ascii
+    $s2 = &quot;/cookiesfile&quot; ascii
+    $s3 = &quot;/c rmdir /s /q&quot; ascii
+    $s4 = &quot;/c xcopy /E /I /Y&quot; ascii
+    $s5 = &quot;U_MemScan&quot; ascii
+    $s6 = &quot;U_Google_AD&quot; ascii
+    $s7 = &quot;untBotUtils&quot; ascii
+    $s8 = &quot;__padoru__&quot; ascii
+    $s10 = &quot;C:\\Windows\\System32\\ntdll.dll&quot; fullword ascii
   condition:
-    all of them
+    uint16(0) == 0x5a4d and (3 of ($x*) or 5 of ($s*))
+    and vt.metadata.new_file
 }"></textarea>
         </label>
 
@@ -196,10 +194,10 @@ rule yara_template
 
     <script>
       window.YARALINT_CONFIG = {
-        version: "1.2.1",
-        build: "2026-05-21T20:15:13-05:00"
+        version: "1.2.2",
+        build: "2026-05-21T20:29:19-05:00"
       };
     </script>
-    <script src="app.js?v=1.2.1"></script>
+    <script src="app.js?v=1.2.2"></script>
   </body>
 </html>
