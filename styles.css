@@ -386,37 +386,37 @@ select {
 
 .wrap-output-action {
   min-height: 26px;
-  padding: 0 8px;
-  border-color: var(--border);
-  background: var(--panel);
-  color: var(--muted);
+  padding: 0 10px;
+  border-color: transparent;
+  border-radius: 999px;
+  background: #e9f7f4;
+  color: #0c534a;
   font-size: 11px;
   font-weight: 800;
   text-transform: uppercase;
 }
 
 .wrap-output-action[aria-pressed="true"] {
-  border-color: var(--accent);
-  background: var(--accent);
-  color: #ffffff;
+  background: #e9f7f4;
+  color: #0c534a;
 }
 
 .wrap-output-action:hover {
-  background: #edf2f6;
-  color: var(--text);
+  background: #d9f1eb;
+  color: #0c534a;
 }
 
 .wrap-output-action[aria-pressed="true"]:hover {
-  background: var(--accent-strong);
-  color: #ffffff;
+  background: #d9f1eb;
+  color: #0c534a;
 }
 
 body.dark-mode .wrap-output-action:hover {
-  background: #1b2940;
+  background: #d9f1eb;
 }
 
 body.dark-mode .wrap-output-action[aria-pressed="true"]:hover {
-  background: var(--accent-strong);
+  background: #d9f1eb;
 }
 
 .validation-badge {
@@ -805,7 +805,8 @@ pre {
 
 .lint-panel {
   flex: 0 0 auto;
-  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  border-top: 0;
   background: var(--panel);
 }
 

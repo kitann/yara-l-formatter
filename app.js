@@ -34,8 +34,8 @@ const versionBadge = document.querySelector("[data-version-badge]");
 const toast = document.querySelector("#toast");
 
 const appConfig = window.YARALINT_CONFIG || {
-  version: "1.1.9",
-  build: "2026-05-21T18:43:17-05:00"
+  version: "1.2.0",
+  build: "2026-05-21T19:30:32-05:00"
 };
 const sectionPattern = /^(meta|strings|events|match|outcome|condition|options):$/i;
 const githubRawBase = "https://raw.githubusercontent.com/Neo23x0/signature-base/master/yara/";
@@ -294,7 +294,7 @@ function updateHighlightedOutput(fixedLines = new Set()) {
 function setOutputWrapMode(enabled) {
   formattedOutput.classList.toggle("wrap-text", enabled);
   wrapOutputBtn.setAttribute("aria-pressed", String(enabled));
-  wrapOutputBtn.textContent = enabled ? "Unwrap Text" : "Wrap Text";
+  wrapOutputBtn.textContent = enabled ? "UNWRAP TEXT" : "WRAP TEXT";
 }
 
 function toggleOutputWrapMode() {
