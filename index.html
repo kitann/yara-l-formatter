@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <!-- YARALint build: 2026-05-21T20:29:19-05:00 | version: 1.2.2 -->
+    <!-- YARALint build: 2026-05-24T06:40:04-05:00 | version: 1.1.8 -->
     <title>YARALint | YARA-L Formatter, Linter &amp; Auto-Fix Toolkit</title>
     <meta name="description" content="Format, lint, auto-fix, and preview YARA-L and YARA-style detection rules online with syntax validation, automatic remediation, fix summaries, examples, and copy/download support.">
     <meta name="keywords" content="YARA-L formatter, YARA formatter, YARA-L rules, cybersecurity tools, detection engineering, Chronicle YARA-L, SIEM rules, security rule formatter">
@@ -17,11 +17,11 @@
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://yaralint.com/">
     <meta property="og:site_name" content="YARALint">
-    <meta property="og:image" content="https://yaralint.com/favicon-32x32.png?v=1.2.2">
-    <link rel="icon" type="image/x-icon" href="favicon.ico?v=1.2.2">
-    <link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png?v=1.2.2">
-    <link rel="icon" type="image/png" sizes="16x16" href="favicon-16x16.png?v=1.2.2">
-    <link rel="stylesheet" href="styles.css?v=1.2.2">
+    <meta property="og:image" content="https://yaralint.com/favicon-32x32.png?v=1.1.8">
+    <link rel="icon" type="image/x-icon" href="favicon.ico?v=1.1.8">
+    <link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png?v=1.1.8">
+    <link rel="icon" type="image/png" sizes="16x16" href="favicon-16x16.png?v=1.1.8">
+    <link rel="stylesheet" href="styles.css?v=1.1.8">
   </head>
   <body>
     <main class="app-shell">
@@ -45,7 +45,7 @@
           <div class="brand-copy">
             <div class="title-row">
               <h1 class="sr-only-heading">YARALint</h1>
-              <span class="version" data-version-badge>v1.2.2</span>
+              <span class="version" data-version-badge>v1.1.8</span>
             </div>
             <p>Format &bull; Lint &bull; Auto-Fix YARA-L rules with syntax validation and transparent fix summaries.</p>
           </div>
@@ -75,29 +75,15 @@
             </span>
           </span>
           <span id="googleSecOpsSourceNote" class="source-note" hidden></span>
-          <textarea id="input" spellcheck="false" placeholder="import &quot;vt&quot;
-rule MALWARE_Win_DarkGate
-{
+          <textarea id="input" spellcheck="false" placeholder="rule suspicious_login {
   meta:
-    author = &quot;ditekShen&quot;
-    description = &quot;Detects DarkGate infostealer and coinminer&quot;
-  strings:
-    $x1 = &quot;SYSTEM Elevation: Completed&quot; ascii
-    $x2 = &quot;-u 0xDark&quot; ascii
-    $x3 = &quot;DarkGate&quot; ascii
-    $x4 = &quot;/c cmdkey /generic:\&quot;127.0.0.2\&quot;&quot; ascii
-    $s1 = &quot;C:\\temp\\crash.txt&quot; ascii
-    $s2 = &quot;/cookiesfile&quot; ascii
-    $s3 = &quot;/c rmdir /s /q&quot; ascii
-    $s4 = &quot;/c xcopy /E /I /Y&quot; ascii
-    $s5 = &quot;U_MemScan&quot; ascii
-    $s6 = &quot;U_Google_AD&quot; ascii
-    $s7 = &quot;untBotUtils&quot; ascii
-    $s8 = &quot;__padoru__&quot; ascii
-    $s10 = &quot;C:\\Windows\\System32\\ntdll.dll&quot; fullword ascii
+    author = &quot;SOC&quot;
+
+  events:
+    $e.metadata.event_type = &quot;USER_LOGIN&quot;
+
   condition:
-    uint16(0) == 0x5a4d and (3 of ($x*) or 5 of ($s*))
-    and vt.metadata.new_file
+    $e
 }"></textarea>
         </label>
 
@@ -137,13 +123,13 @@ rule MALWARE_Win_DarkGate
 
         <div class="editor-pane">
           <span class="pane-header output-header">
-            <span class="output-title-actions">
-              <span>Formatter Output</span>
-              <button id="wrapOutputBtn" type="button" class="header-action wrap-output-action" aria-pressed="false">WRAP TEXT</button>
-            </span>
+            <span>Formatter Output</span>
             <span id="validationBadge" class="validation-badge badge-info">READY</span>
           </span>
           <textarea id="output" class="sr-only-output" spellcheck="false" readonly aria-hidden="true" tabindex="-1"></textarea>
+          <div class="formatted-output">
+            <pre><code id="highlightedOutput"></code></pre>
+          </div>
           <details id="lintResultsPanel" class="lint-panel">
             <summary>
               <span>Lint Results & Fix Summary</span>
@@ -153,9 +139,6 @@ rule MALWARE_Win_DarkGate
               <p class="lint-empty">Format a rule to see lint results.</p>
             </div>
           </details>
-          <div class="formatted-output">
-            <pre><code id="highlightedOutput"></code></pre>
-          </div>
         </div>
       </section>
 
@@ -186,18 +169,18 @@ rule MALWARE_Win_DarkGate
     </main>
 
     <footer class="site-footer">
-      Built by Saheed Adeoye . Open Source on
-      <a href="https://github.com/kitann/yara-l-formatter" target="_blank" rel="noreferrer">GitHub</a>
+      Built by Saheed Adeoye . Open Source on GitHub -
+      <a href="https://github.com/kitann/yara-l-formatter" target="_blank" rel="noreferrer">https://github.com/kitann/yara-l-formatter</a>
     </footer>
 
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
     <script>
       window.YARALINT_CONFIG = {
-        version: "1.2.2",
-        build: "2026-05-21T20:29:19-05:00"
+        version: "1.1.8",
+        build: "2026-05-24T06:40:04-05:00"
       };
     </script>
-    <script src="app.js?v=1.2.2"></script>
+    <script src="app.js?v=1.1.8"></script>
   </body>
 </html>

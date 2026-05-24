@@ -6,7 +6,6 @@ const downloadBtn = document.querySelector("#downloadBtn");
 const clearBtn = document.querySelector("#clearBtn");
 const chooseExampleBtn = document.querySelector("#chooseExampleBtn");
 const googleSecOpsRulesBtn = document.querySelector("#googleSecOpsRulesBtn");
-const wrapOutputBtn = document.querySelector("#wrapOutputBtn");
 const closeExampleBtn = document.querySelector("#closeExampleBtn");
 const closeGoogleSecOpsBtn = document.querySelector("#closeGoogleSecOpsBtn");
 const randomExampleBtn = document.querySelector("#randomExampleBtn");
@@ -24,7 +23,6 @@ const indentSize = document.querySelector("#indentSize");
 const themeMode = document.querySelector("#themeMode");
 const compactBlankLines = document.querySelector("#compactBlankLines");
 const statusBox = document.querySelector("#status");
-const formattedOutput = document.querySelector(".formatted-output");
 const highlightedOutput = document.querySelector("#highlightedOutput");
 const validationBadge = document.querySelector("#validationBadge");
 const lintResultsPanel = document.querySelector("#lintResultsPanel");
@@ -34,8 +32,8 @@ const versionBadge = document.querySelector("[data-version-badge]");
 const toast = document.querySelector("#toast");
 
 const appConfig = window.YARALINT_CONFIG || {
-  version: "1.2.2",
-  build: "2026-05-21T20:29:19-05:00"
+  version: "1.1.8",
+  build: "2026-05-24T06:40:04-05:00"
 };
 const sectionPattern = /^(meta|strings|events|match|outcome|condition|options):$/i;
 const githubRawBase = "https://raw.githubusercontent.com/Neo23x0/signature-base/master/yara/";
@@ -289,16 +287,6 @@ function updateHighlightedOutput(fixedLines = new Set()) {
   highlightedOutput.innerHTML = output.value.trim()
     ? highlightYaraL(output.value, fixedLines)
     : "";
-}
-
-function setOutputWrapMode(enabled) {
-  formattedOutput.classList.toggle("wrap-text", enabled);
-  wrapOutputBtn.setAttribute("aria-pressed", String(enabled));
-  wrapOutputBtn.textContent = enabled ? "UNWRAP TEXT" : "WRAP TEXT";
-}
-
-function toggleOutputWrapMode() {
-  setOutputWrapMode(!formattedOutput.classList.contains("wrap-text"));
 }
 
 function isHexStringStart(line) {
@@ -2018,7 +2006,6 @@ downloadBtn.addEventListener("click", downloadOutput);
 clearBtn.addEventListener("click", clearEditors);
 chooseExampleBtn.addEventListener("click", openExamplePanel);
 googleSecOpsRulesBtn.addEventListener("click", openGoogleSecOpsPanel);
-wrapOutputBtn.addEventListener("click", toggleOutputWrapMode);
 closeExampleBtn.addEventListener("click", closeExamplePanel);
 closeGoogleSecOpsBtn.addEventListener("click", closeGoogleSecOpsPanel);
 randomExampleBtn.addEventListener("click", loadRandomExample);
@@ -2052,7 +2039,6 @@ window.YARALINT_TESTS = {
 
 initializeVersionBadge();
 initializeTheme();
-setOutputWrapMode(false);
 renderExamples();
 setValidationBadge("READY");
 renderLintResults();

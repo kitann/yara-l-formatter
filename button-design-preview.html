@@ -1,0 +1,396 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>YaraLint Button Style Preview</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --font: Biome, "Segoe UI", ui-sans-serif, system-ui, sans-serif;
+        --bg: #f5f7f9;
+        --panel: #ffffff;
+        --text: #17212b;
+        --muted: #607083;
+        --border: #d8e0e7;
+        --accent: #2aa889;
+        --accent-strong: #0c6f61;
+        --ink: #08162a;
+        --blue: #4285f4;
+        --red: #ea4335;
+        --yellow: #fbbc04;
+        --green: #34a853;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        background: var(--bg);
+        color: var(--text);
+        font-family: var(--font);
+      }
+
+      main {
+        width: min(1180px, calc(100% - 32px));
+        margin: 0 auto;
+        padding: 32px 0 48px;
+      }
+
+      header {
+        margin-bottom: 24px;
+      }
+
+      h1 {
+        margin: 0;
+        font-size: 32px;
+        letter-spacing: 0;
+      }
+
+      p {
+        max-width: 720px;
+        margin: 8px 0 0;
+        color: var(--muted);
+        line-height: 1.5;
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 18px;
+      }
+
+      .card {
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        background: var(--panel);
+        overflow: hidden;
+      }
+
+      .card.dark {
+        --panel: #121a2b;
+        --text: #edf4ff;
+        --muted: #a8b6ca;
+        --border: #26364d;
+        --ink: #edf4ff;
+        background: #0b1220;
+      }
+
+      .card-head {
+        padding: 16px;
+        border-bottom: 1px solid var(--border);
+      }
+
+      .card h2 {
+        margin: 0;
+        color: var(--text);
+        font-size: 17px;
+      }
+
+      .card p {
+        font-size: 13px;
+      }
+
+      .demo {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        padding: 18px 16px 20px;
+        align-items: center;
+      }
+
+      button {
+        min-height: 42px;
+        padding: 0 18px;
+        border-radius: 8px;
+        font: 800 15px/1 var(--font);
+        letter-spacing: 0;
+        cursor: default;
+      }
+
+      .solid {
+        border: 1px solid #279f83;
+        background: linear-gradient(180deg, #35b79a, #249a7f);
+        color: white;
+        box-shadow: inset 0 1px 0 rgba(255,255,255,0.22), 0 8px 18px rgba(42,168,137,0.18);
+      }
+
+      .solid.secondary {
+        border-color: #20314a;
+        background: #111a2b;
+        color: #f2f7ff;
+        box-shadow: none;
+      }
+
+      .outline {
+        border: 1.5px solid #2aa889;
+        background: transparent;
+        color: var(--accent-strong);
+      }
+
+      .dark .outline {
+        color: #86efac;
+      }
+
+      .outline.primary {
+        background: rgba(42,168,137,0.1);
+      }
+
+      .soft {
+        border: 1px solid transparent;
+        background: #e8f7f3;
+        color: #07594d;
+      }
+
+      .soft.secondary {
+        background: #edf2f6;
+        color: #34465d;
+      }
+
+      .dark .soft {
+        background: rgba(42,168,137,0.16);
+        color: #b9f8df;
+      }
+
+      .dark .soft.secondary {
+        background: #1a2435;
+        color: #d7e3f3;
+      }
+
+      .rail {
+        position: relative;
+        border: 1px solid var(--border);
+        background: var(--panel);
+        color: var(--text);
+        box-shadow: 0 1px 0 rgba(15, 23, 42, 0.05);
+      }
+
+      .rail::before {
+        content: "";
+        position: absolute;
+        inset: 0 auto 0 0;
+        width: 5px;
+        border-radius: 7px 0 0 7px;
+        background: #2aa889;
+      }
+
+      .chrome {
+        border: 2px solid transparent;
+        background:
+          linear-gradient(var(--panel), var(--panel)) padding-box,
+          linear-gradient(90deg, var(--blue), var(--red), var(--yellow), var(--green)) border-box;
+        color: var(--text);
+      }
+
+      .dark .chrome {
+        background:
+          linear-gradient(#121a2b, #121a2b) padding-box,
+          linear-gradient(90deg, var(--blue), var(--red), var(--yellow), var(--green)) border-box;
+        color: #edf4ff;
+      }
+
+      .pressed {
+        border: 1px solid #0e685d;
+        background: #102a34;
+        color: #d9fff2;
+        box-shadow: inset 0 -3px 0 rgba(0, 0, 0, 0.28), inset 0 1px 0 rgba(255,255,255,0.12);
+      }
+
+      .light-pressed {
+        border: 1px solid #bcd3cc;
+        background: #f7fbfa;
+        color: #102a34;
+        box-shadow: inset 0 -3px 0 #dcebe7;
+      }
+
+      .compact {
+        min-height: 34px;
+        padding: 0 12px;
+        border: 1px solid var(--border);
+        background: var(--panel);
+        color: var(--text);
+        font-size: 13px;
+      }
+
+      .compact.primary {
+        border-color: #2aa889;
+        color: var(--accent-strong);
+      }
+
+      @media (max-width: 820px) {
+        .grid {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <h1>YaraLint Button Style Directions</h1>
+        <p>These are visual-only options for choosing a button language. Each card shows the same action group in light and dark surfaces so the style can be judged against the current app themes.</p>
+      </header>
+
+      <section class="grid">
+        <article class="card">
+          <div class="card-head">
+            <h2>1. Polished Solid</h2>
+            <p>Closest to the current app, but a little more dimensional and modern.</p>
+          </div>
+          <div class="demo">
+            <button class="solid">Format</button>
+            <button class="solid">Copy</button>
+            <button class="solid">Download</button>
+            <button class="solid secondary">Clear</button>
+          </div>
+        </article>
+
+        <article class="card dark">
+          <div class="card-head">
+            <h2>1. Polished Solid, Dark</h2>
+            <p>High contrast, practical, and still recognizable as YaraLint.</p>
+          </div>
+          <div class="demo">
+            <button class="solid">Format</button>
+            <button class="solid">Copy</button>
+            <button class="solid">Download</button>
+            <button class="solid secondary">Clear</button>
+          </div>
+        </article>
+
+        <article class="card">
+          <div class="card-head">
+            <h2>2. Outline Utility</h2>
+            <p>Quieter and more professional; good if the editor content should dominate.</p>
+          </div>
+          <div class="demo">
+            <button class="outline primary">Format</button>
+            <button class="outline">Copy</button>
+            <button class="outline">Download</button>
+            <button class="outline">Clear</button>
+          </div>
+        </article>
+
+        <article class="card dark">
+          <div class="card-head">
+            <h2>2. Outline Utility, Dark</h2>
+            <p>Low-glare controls with a security-console feel.</p>
+          </div>
+          <div class="demo">
+            <button class="outline primary">Format</button>
+            <button class="outline">Copy</button>
+            <button class="outline">Download</button>
+            <button class="outline">Clear</button>
+          </div>
+        </article>
+
+        <article class="card">
+          <div class="card-head">
+            <h2>3. Soft Panel</h2>
+            <p>Friendly, calm, and readable. Less command-heavy than solid buttons.</p>
+          </div>
+          <div class="demo">
+            <button class="soft">Format</button>
+            <button class="soft">Copy</button>
+            <button class="soft">Download</button>
+            <button class="soft secondary">Clear</button>
+          </div>
+        </article>
+
+        <article class="card dark">
+          <div class="card-head">
+            <h2>3. Soft Panel, Dark</h2>
+            <p>Comfortable for long sessions, with enough separation to scan quickly.</p>
+          </div>
+          <div class="demo">
+            <button class="soft">Format</button>
+            <button class="soft">Copy</button>
+            <button class="soft">Download</button>
+            <button class="soft secondary">Clear</button>
+          </div>
+        </article>
+
+        <article class="card">
+          <div class="card-head">
+            <h2>4. Left Rail</h2>
+            <p>A tidy enterprise-tool style: restrained with a clear action marker.</p>
+          </div>
+          <div class="demo">
+            <button class="rail">Format</button>
+            <button class="rail">Copy</button>
+            <button class="rail">Download</button>
+            <button class="rail">Clear</button>
+          </div>
+        </article>
+
+        <article class="card dark">
+          <div class="card-head">
+            <h2>4. Left Rail, Dark</h2>
+            <p>Subtle, structured, and good for dense analyst workflows.</p>
+          </div>
+          <div class="demo">
+            <button class="rail">Format</button>
+            <button class="rail">Copy</button>
+            <button class="rail">Download</button>
+            <button class="rail">Clear</button>
+          </div>
+        </article>
+
+        <article class="card">
+          <div class="card-head">
+            <h2>5. Google Edge</h2>
+            <p>Uses the multicolor edge treatment sparingly, like the SecOps button.</p>
+          </div>
+          <div class="demo">
+            <button class="chrome">Format</button>
+            <button class="chrome">Copy</button>
+            <button class="chrome">Download</button>
+            <button class="chrome">Clear</button>
+          </div>
+        </article>
+
+        <article class="card dark">
+          <div class="card-head">
+            <h2>5. Google Edge, Dark</h2>
+            <p>Visually distinct, best used for one or two special actions.</p>
+          </div>
+          <div class="demo">
+            <button class="chrome">Format</button>
+            <button class="chrome">Copy</button>
+            <button class="chrome">Download</button>
+            <button class="chrome">Clear</button>
+          </div>
+        </article>
+
+        <article class="card">
+          <div class="card-head">
+            <h2>6. Compact Toolbar</h2>
+            <p>Smaller controls for making the top area feel lighter and more tool-like.</p>
+          </div>
+          <div class="demo">
+            <button class="compact primary">Format</button>
+            <button class="compact">Copy</button>
+            <button class="compact">Download</button>
+            <button class="compact">Clear</button>
+          </div>
+        </article>
+
+        <article class="card dark">
+          <div class="card-head">
+            <h2>6. Pressed Console</h2>
+            <p>More tactile and terminal-like. Strong, but a bit heavier visually.</p>
+          </div>
+          <div class="demo">
+            <button class="pressed">Format</button>
+            <button class="pressed">Copy</button>
+            <button class="pressed">Download</button>
+            <button class="pressed">Clear</button>
+          </div>
+        </article>
+      </section>
+    </main>
+  </body>
+</html>
