@@ -75,15 +75,50 @@
             </span>
           </span>
           <span id="googleSecOpsSourceNote" class="source-note" hidden></span>
-          <textarea id="input" spellcheck="false" placeholder="rule suspicious_login {
-  meta:
-    author = &quot;SOC&quot;
+          <textarea id="input" spellcheck="false" placeholder="/*
+ * Copyright 2026 Google LLC
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 
-  events:
-    $e.metadata.event_type = &quot;USER_LOGIN&quot;
+rule sap_change_documents_sensitive_role_assignment {
 
-  condition:
-    $e
+    meta:
+        author = &quot;Google Cloud Security&quot;
+        description = &quot;Detects the assignment of highly privileged SAP roles via Change Documents.&quot;
+        severity = &quot;Critical&quot;
+        tactic = &quot;TA0004&quot;
+        technique = &quot;T1098&quot;
+
+    events:
+        $e.metadata.log_type = &quot;SAP_CHANGE_DOCUMENT&quot;
+        $e.target.resource.product_object_id in %sap_sensitive_roles.role
+
+        $principal_user = $e.principal.user.userid
+
+
+    match:
+        $principal_user over 30m
+
+    outcome:
+        $target_user = array_distinct($e.target.resource.product_object_id)
+        $tcode = array_distinct($e.target.application)
+        $tabname = array_distinct($e.target.resource.attribute.labels[&quot;TABNAME&quot;])
+        $sensitive_role_assigned = array_distinct($e.target.resource.attribute.labels[&quot;TABKEY&quot;])
+
+    condition:
+        $e
+
 }"></textarea>
         </label>
 
