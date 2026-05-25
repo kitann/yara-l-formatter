@@ -23,7 +23,9 @@ const indentSize = document.querySelector("#indentSize");
 const themeMode = document.querySelector("#themeMode");
 const compactBlankLines = document.querySelector("#compactBlankLines");
 const statusBox = document.querySelector("#status");
+const formattedOutput = document.querySelector("#formattedOutput");
 const highlightedOutput = document.querySelector("#highlightedOutput");
+const wrapTextBtn = document.querySelector("#wrapTextBtn");
 const validationBadge = document.querySelector("#validationBadge");
 const lintResultsPanel = document.querySelector("#lintResultsPanel");
 const lintResultCount = document.querySelector("#lintResultCount");
@@ -32,8 +34,8 @@ const versionBadge = document.querySelector("[data-version-badge]");
 const toast = document.querySelector("#toast");
 
 const appConfig = window.YARALINT_CONFIG || {
-  version: "1.1.8",
-  build: "2026-05-24T06:40:04-05:00"
+  version: "1.1.9",
+  build: "2026-05-25T06:13:55-05:00"
 };
 const sectionPattern = /^(meta|strings|events|match|outcome|condition|options):$/i;
 const githubRawBase = "https://raw.githubusercontent.com/Neo23x0/signature-base/master/yara/";
@@ -287,6 +289,16 @@ function updateHighlightedOutput(fixedLines = new Set()) {
   highlightedOutput.innerHTML = output.value.trim()
     ? highlightYaraL(output.value, fixedLines)
     : "";
+}
+
+function setWrapText(enabled) {
+  formattedOutput.classList.toggle("wrap-text-enabled", enabled);
+  wrapTextBtn.textContent = enabled ? "UNWRAP TEXT" : "WRAP TEXT";
+  wrapTextBtn.setAttribute("aria-pressed", String(enabled));
+}
+
+function toggleWrapText() {
+  setWrapText(!formattedOutput.classList.contains("wrap-text-enabled"));
 }
 
 function isHexStringStart(line) {
@@ -2004,6 +2016,7 @@ formatBtn.addEventListener("click", runFormatter);
 copyBtn.addEventListener("click", copyOutput);
 downloadBtn.addEventListener("click", downloadOutput);
 clearBtn.addEventListener("click", clearEditors);
+wrapTextBtn.addEventListener("click", toggleWrapText);
 chooseExampleBtn.addEventListener("click", openExamplePanel);
 googleSecOpsRulesBtn.addEventListener("click", openGoogleSecOpsPanel);
 closeExampleBtn.addEventListener("click", closeExamplePanel);

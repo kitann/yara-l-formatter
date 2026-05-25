@@ -377,6 +377,37 @@ select {
   flex: 0 0 auto;
 }
 
+.output-title-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.wrap-text-action {
+  min-height: 32px;
+  padding: 0 14px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: #e9f7f4;
+  color: #0c534a;
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.wrap-text-action:hover {
+  background: #d8f0ea;
+}
+
+body.dark-mode .wrap-text-action {
+  background: #e9f7f4;
+  color: #0c534a;
+}
+
+body.dark-mode .wrap-text-action:hover {
+  background: #d8f0ea;
+}
+
 .validation-badge {
   display: inline-flex;
   align-items: center;
@@ -519,6 +550,21 @@ textarea::placeholder {
   flex: 1 1 auto;
   min-height: 0;
   background: var(--code-bg);
+}
+
+.formatted-output.wrap-text-enabled pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.formatted-output.wrap-text-enabled .code-line {
+  display: flex;
+  align-items: flex-start;
+  white-space: pre-wrap;
+}
+
+.formatted-output.wrap-text-enabled .code-line::before {
+  flex: 0 0 5ch;
 }
 
 body.dark-mode textarea,
@@ -784,7 +830,7 @@ pre {
 
 .lint-panel {
   flex: 0 0 auto;
-  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
   background: var(--panel);
 }
 
