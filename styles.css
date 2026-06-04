@@ -285,9 +285,32 @@ button {
 }
 
 .coffee-link {
+  position: relative;
+  overflow: hidden;
   border-color: #2aa889;
   background: var(--coffee);
   color: var(--coffee-text);
+  isolation: isolate;
+}
+
+.coffee-link::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  border-radius: inherit;
+  background: linear-gradient(110deg, transparent 0 34%, rgba(255, 255, 255, 0.9) 45%, transparent 58% 100%);
+  transform: translateX(-130%);
+  animation: coffee-light-sweep 3.2s ease-in-out infinite;
+}
+
+body.dark-mode .coffee-link::after {
+  background: linear-gradient(110deg, transparent 0 30%, rgba(42, 168, 137, 0.25) 38%, rgba(255, 255, 255, 1) 48%, rgba(134, 239, 172, 0.85) 56%, transparent 68% 100%);
+}
+
+.coffee-link span {
+  position: relative;
+  z-index: 1;
 }
 
 .coffee-link:hover {
@@ -302,6 +325,22 @@ button {
   height: 1em;
   font-size: 1em;
   line-height: 1;
+}
+
+@keyframes coffee-light-sweep {
+  0%, 45% {
+    transform: translateX(-130%);
+  }
+
+  78%, 100% {
+    transform: translateX(130%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .coffee-link::after {
+    animation: none;
+  }
 }
 
 button:hover {
