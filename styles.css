@@ -8,8 +8,8 @@
   --border: #d8e0e7;
   --accent: #136f63;
   --accent-strong: #0c534a;
-  --coffee: #ffdd00;
-  --coffee-text: #201b00;
+  --coffee: #e9f7f4;
+  --coffee-text: #0c534a;
   --danger: #b42318;
   --warning: #946200;
   --code-bg: #101820;
@@ -285,13 +285,23 @@ button {
 }
 
 .coffee-link {
-  border-color: #e7c600;
+  border-color: #2aa889;
   background: var(--coffee);
   color: var(--coffee-text);
 }
 
 .coffee-link:hover {
-  background: #f2d000;
+  background: #d8f0ea;
+}
+
+.coffee-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1em;
+  height: 1em;
+  font-size: 1em;
+  line-height: 1;
 }
 
 button:hover {

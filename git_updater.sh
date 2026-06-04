@@ -26,7 +26,7 @@ git commit -m "$commitmsg"
 # Push to remote
 echo ""
 echo "[*] Pushing to GitHub..."
-git push
+git push origin main
 
 # Show latest commits
 echo ""
