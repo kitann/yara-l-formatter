@@ -34,8 +34,8 @@ const versionBadge = document.querySelector("[data-version-badge]");
 const toast = document.querySelector("#toast");
 
 const appConfig = window.YARALINT_CONFIG || {
-  version: "1.1.9",
-  build: "2026-05-25T06:13:55-05:00"
+  version: "1.2.0",
+  build: "2026-06-03T18:04:11-05:00"
 };
 const sectionPattern = /^(meta|strings|events|match|outcome|condition|options):$/i;
 const githubRawBase = "https://raw.githubusercontent.com/Neo23x0/signature-base/master/yara/";
